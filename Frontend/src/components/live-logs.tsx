@@ -1,22 +1,18 @@
 import { useEffect, useState } from "react";
+import logsData from "../livelogs.json";
 
 export default function LiveLogs() {
-    const [logs, setLogs] = useState<any[]>([]);
+    const [logs, setLogs] = useState(logsData);
 
     useEffect(() => {
-        fetch("http://127.0.0.1:8000/dashboard")
-            .then((res) => res.json())
-            .then((data) => setLogs(data))
-            .catch(console.error);
+        console.log("Logs component mounted");
     }, []);
 
     return (
-        <div>
-            <h2>Logs</h2>
-
+        <div className="bg-black text-green-400 font-mono p-4 rounded-lg h-full overflow-y-auto">
             {logs.map((log, index) => (
                 <div key={index}>
-                    <strong>{log.level}</strong> - {log.message}
+                    {JSON.stringify(log)}
                 </div>
             ))}
         </div>

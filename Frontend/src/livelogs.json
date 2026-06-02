@@ -1,0 +1,10 @@
+[
+    {
+        "level": "info",
+        "message": "Application started"
+    },
+    {
+        "level": "success",
+        "message": "Database connected"
+    }
+]
