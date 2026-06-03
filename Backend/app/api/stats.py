@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+# pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_core_db, get_logs_db
 from app.repositories.device_repository import DeviceRepository

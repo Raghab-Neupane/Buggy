@@ -100,7 +100,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
               <span className="text-[10px] text-slate-500 font-bold tracking-tight">{card.description}</span>
               {/* Mini Sparkline Chart */}
               <div className="w-16 h-8 opacity-75 group-hover:opacity-100 transition-opacity duration-200">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={50}>
                   <AreaChart data={card.sparkline}>
                     <defs>
                       <linearGradient id={`gradient-${idx}`} x1="0" y1="0" x2="0" y2="1">

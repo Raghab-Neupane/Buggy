@@ -42,6 +42,16 @@ class DeviceService:
         else:
           last_seen_str = f"{diff_secs // 3600}h ago"
 
+      # Query latest URL visited by the device
+      url_query = (
+        select(Log.url)
+        .where(Log.device_id == dev.id)
+        .order_by(Log.timestamp.desc())
+        .limit(1)
+      )
+      url_result = await self.log_repo.db.execute(url_query)
+      latest_url = url_result.scalar() or "https://buggy.dev/"
+
       response_list.append(
         DeviceResponse(
           id=dev.id,
@@ -51,7 +61,8 @@ class DeviceService:
           errorCount=error_count,
           lastSeen=last_seen_str,
           browser=dev.browser,
-          os=dev.os
+          os=dev.os,
+          url=latest_url
         )
       )
 

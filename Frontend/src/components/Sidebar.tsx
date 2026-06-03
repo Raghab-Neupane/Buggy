@@ -61,11 +61,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
           return (
             <Link key={item.path} to={item.path === "/dashboard" ? "/dashboard" : "#"}>
               <div
-                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold relative transition-all duration-150 ${
-                  isActive
-                    ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black"
-                    : "text-slate-600 hover:text-black hover:bg-slate-100 border border-transparent"
-                }`}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold relative transition-all duration-150 ${isActive
+                  ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black"
+                  : "text-slate-600 hover:text-black hover:bg-slate-100 border border-transparent"
+                  }`}
               >
                 {isActive && (
                   <motion.div
@@ -105,11 +104,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
             return (
               <Link key={device.id} to={`/device/${device.id}`}>
                 <div
-                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-[11px] group transition-all duration-150 border-2 ${
-                    isSelected
-                      ? "bg-brand-50 text-brand-700 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black"
-                      : "hover:bg-slate-50 text-slate-600 hover:text-black border-transparent"
-                  }`}
+                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-[11px] group transition-all duration-150 border-2 ${isSelected
+                    ? "bg-brand-50 text-brand-700 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black"
+                    : "hover:bg-slate-50 text-slate-600 hover:text-black border-transparent"
+                    }`}
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span className="text-xs group-hover:scale-105 transition-transform">
@@ -117,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
                     </span>
                     <span className="truncate font-semibold">{device.name}</span>
                   </div>
-                  
+
                   <div className="flex items-center gap-1.5">
                     {device.errorCount > 0 && (
                       <span className="text-[8px] bg-red-100 text-red-700 border border-red-300 rounded font-black px-1 scale-90">
@@ -125,11 +123,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
                       </span>
                     )}
                     <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        device.online
-                          ? "bg-emerald-500 glow-dot-active"
-                          : "bg-slate-300"
-                      }`}
+                      className={`w-1.5 h-1.5 rounded-full ${device.online
+                        ? "bg-emerald-500 glow-dot-active"
+                        : "bg-slate-300"
+                        }`}
                     />
                   </div>
                 </div>

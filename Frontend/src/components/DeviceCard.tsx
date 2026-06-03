@@ -32,7 +32,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({ device }) => {
     <Link to={`/device/${device.id}`} className="block">
       <motion.div
         whileTap={{ scale: 0.98 }}
-        style={{ 
+        style={{
           boxShadow: `4px 4px 0px 0px #0f172a`
         }}
         className={`bg-white border-2 border-slate-900 rounded-2xl p-6 relative overflow-hidden group hover:translate-y-[-3px] hover:translate-x-[-3px] transition-all duration-200 cursor-pointer h-64 flex flex-col justify-between ${getShadowColor()}`}
@@ -46,14 +46,14 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({ device }) => {
             </div>
             <div>
               <h4 className="font-bold text-slate-900 tracking-tight group-hover:text-brand-600 transition-colors">
-                {device.name}
+                {device.url}
               </h4>
               <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider mt-0.5">
                 {device.browser} • {device.os}
               </p>
             </div>
           </div>
-          
+
           <StatusBadge online={device.online} />
         </div>
 
@@ -88,7 +88,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({ device }) => {
             <Clock className="w-3.5 h-3.5 text-slate-400" />
             <span>Seen: {device.lastSeen}</span>
           </div>
-          
+
           <div className="flex items-center gap-1 bg-slate-100 text-[9px] text-slate-700 font-extrabold px-2 py-1 rounded-md border border-slate-300 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)] group-hover:bg-brand-500 group-hover:text-white group-hover:border-slate-900 transition-all duration-200">
             <Cpu className="w-3.5 h-3.5" />
             <span>INSPECT</span>

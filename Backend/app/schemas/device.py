@@ -34,6 +34,7 @@ class DeviceResponse(BaseModel):
   lastSeen: str = Field(..., serialization_alias="lastSeen")
   browser: Optional[str] = None
   os: Optional[str] = None
+  url: Optional[str] = None
 
   model_config = {
     "populate_by_name": True,
