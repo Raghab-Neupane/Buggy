@@ -87,6 +87,8 @@ export function useLogs(deviceId: string | undefined) {
   }, [deviceId, limit, offset]);
 
   // Connect to WebSocket stream (only active when on the first page / offset 0)
+  // Establish a single WebSocket connection for the active device.
+  // The connection should persist across pause/resume toggles and only reset when the deviceId changes.
   useEffect(() => {
     if (!deviceId || offset !== 0) return;
 
@@ -96,25 +98,25 @@ export function useLogs(deviceId: string | undefined) {
 
     // Subscribe to incoming stream events
     const unsubscribe = stream.subscribe((newLog) => {
-      // Add to buffer
-      logsBufferRef.current = [...logsBufferRef.current, newLog];
+      // Add to buffer (capped to recent 1000 entries to avoid memory leak)
+      logsBufferRef.current = [...logsBufferRef.current, newLog].slice(-1000);
 
       // Append to visible logs if not paused
       if (!isPaused) {
         setLogs((prev) => {
-          // Prepend or append depending on sorting order (we sort by desc timestamp in UI memo)
-          // Since our UI maps them, we'll append to list
-          return [newLog, ...prev];
+          // Prepend to keep newest first
+          return [newLog, ...prev].slice(0, 1000);
         });
       }
     });
 
+    // Cleanup on unmount or when deviceId changes
     return () => {
       unsubscribe();
       stream.disconnect();
       streamRef.current = null;
     };
-  }, [deviceId, isPaused, offset]);
+  }, [deviceId, offset]);
 
   // Filter and search logs memoized
   const filteredLogs = useMemo(() => {
