@@ -1,1 +1,104 @@
 @import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c084fc;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+  --color-brand-800: #5b21b6;
+  --color-brand-900: #4c1d95;
+  --color-brand-950: #2e1065;
+
+  --color-terminal-bg: #ffffff;
+  --color-terminal-border: #0f172a;
+  --color-terminal-text: #000000;
+
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-float: float 6s ease-in-out infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+}
+
+/* Custom Base Layer styles */
+@layer base {
+  body {
+    background-color: #ffffff;
+    /* Extremely subtle light-slate tech dot grid */
+    background-image: 
+      radial-gradient(#e2e8f0 1.2px, transparent 1.2px);
+    background-size: 20px 20px;
+    background-attachment: fixed;
+    color: #000000;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+}
+
+/* Cartoonish / Neo-Brutalist Grid Card Utilities */
+.cartoon-card {
+  background-color: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 16px;
+  box-shadow: 4px 4px 0px 0px #000000;
+  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.cartoon-card:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: 7px 7px 0px 0px #7c3aed; /* Violet offset shadow */
+  border-color: #000000;
+}
+
+.cartoon-card-error:hover {
+  box-shadow: 7px 7px 0px 0px #ef4444; /* Rose shadow for error cards */
+}
+
+/* Stats Card Neo-brutalist shadows */
+.cartoon-stats-card {
+  background-color: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 16px;
+  box-shadow: 3px 3px 0px 0px #000000;
+  transition: all 0.2s ease;
+}
+
+.cartoon-stats-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px 0px #3b82f6; /* Blue offset shadow */
+}
+
+/* macOS scrollbar styling - Thin Rail */
+.mac-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.mac-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mac-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.2);
+  border-radius: 9999px;
+}
+
+.mac-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+/* Custom glow indicator dots */
+.glow-dot-active {
+  box-shadow: 0 0 8px 2px rgba(16, 185, 129, 0.5);
+}
+
+.glow-dot-error {
+  box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.5);
+}
