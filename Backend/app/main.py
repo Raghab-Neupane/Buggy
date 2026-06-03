@@ -3,6 +3,14 @@ from app.schema.schema import LogEvent
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 logs = []
 
 @app.post("/logs")
