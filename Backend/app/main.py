@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.schema.schema import LogEvent
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
