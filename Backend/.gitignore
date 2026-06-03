@@ -1,0 +1,4 @@
+venv/
+*.mmdb
+__pycache__/
+*.pyc
