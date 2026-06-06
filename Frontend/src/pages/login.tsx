@@ -9,6 +9,7 @@ export const Login: React.FC = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+    const [role, setRole] = useState<"user" | "admin">("user");
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -27,43 +28,56 @@ export const Login: React.FC = () => {
                     headers: {
                         "Content-Type": "application/json",
                     },
+                    credentials: "include",
                     body: JSON.stringify({ email, password }),
                 });
 
                 if (!response.ok) {
-                    throw new Error("Invalid credentials or login failed.");
+                    const data = await response.json();
+                    throw new Error(data.detail || "Invalid credentials or login failed.");
                 }
 
-                // Generate/retrieve 4-character unique key for this email
-                const storageKey = `userkey_${email}`;
-                let userKey = localStorage.getItem(storageKey);
-                if (!userKey) {
-                    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-                    userKey = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-                    localStorage.setItem(storageKey, userKey);
-                }
+                const data = await response.json();
+                
+                // Store non-sensitive metadata in localStorage for routing/UX
+                localStorage.setItem("role", data.role);
+                localStorage.setItem("userId", data.user_id);
+                localStorage.setItem("email", email);
 
-                // Post the key to the backend
-                await fetch("http://localhost:8000/userkey", {
+                setMessage({ type: "success", text: `Logged in successfully! Redirecting...` });
+                setTimeout(() => {
+                    if (data.role === "admin") {
+                        window.location.href = "/dashboard";
+                    } else {
+                        window.location.href = `/dashboard/${data.user_id}`;
+                    }
+                }, 1500);
+            } else if (view === "signup") {
+                const response = await fetch("http://localhost:8000/signup", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({ key: userKey }),
+                    credentials: "include",
+                    body: JSON.stringify({ email, password, role }),
                 });
 
-                setMessage({ type: "success", text: `Logged in successfully! User ID Key: ${userKey}` });
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.detail || "Signup failed.");
+                }
+
+                setMessage({ type: "success", text: "Account created successfully! Switching to Login..." });
                 setTimeout(() => {
-                    window.location.href = "/dashboard";
+                    switchView("login");
                 }, 1500);
-            } else if (view === "signup") {
-                setMessage({ type: "success", text: "Account created successfully! (Demo)" });
             } else if (view === "forgot") {
                 const response = await fetch("http://localhost:8000/send-email", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
+                    credentials: "include",
                 });
 
                 if (!response.ok) {
@@ -82,6 +96,7 @@ export const Login: React.FC = () => {
         setEmail("");
         setPassword("");
         setConfirmPassword("");
+        setRole("user");
         setView(newView);
     };
 
@@ -240,6 +255,23 @@ export const Login: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Admin Gateway Checkbox Toggle */}
+                                <div className="flex items-center gap-2 py-1 select-none">
+                                    <input
+                                        type="checkbox"
+                                        id="admin_checkbox"
+                                        checked={role === "admin"}
+                                        onChange={(e) => setRole(e.target.checked ? "admin" : "user")}
+                                        className="w-4 h-4 text-emerald-600 border-2 border-slate-900 rounded focus:ring-0 cursor-pointer"
+                                    />
+                                    <label
+                                        htmlFor="admin_checkbox"
+                                        className="text-xs font-black text-slate-700 uppercase tracking-tight cursor-pointer"
+                                    >
+                                        login as admin
+                                    </label>
+                                </div>
+
                                 <button
                                     type="submit"
                                     className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 border-2 border-slate-900 text-white font-black rounded-lg shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] active:translate-y-[1px] active:translate-x-[1px] active:shadow-[1px_1px_0px_0px_rgba(15,23,42,1)] transition-all cursor-pointer text-sm"
@@ -251,7 +283,7 @@ export const Login: React.FC = () => {
                             <div className="mt-6 text-center">
                                 <button
                                     onClick={() => switchView("login")}
-                                    className="text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                                    className="text-xs font-bold text-slate-550 hover:text-slate-800 cursor-pointer"
                                 >
                                     Already have an account? <span className="text-indigo-600 hover:underline">Sign In</span>
                                 </button>

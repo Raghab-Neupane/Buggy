@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import type { Device } from "../types/device";
-import { fetchDevices, fetchStats } from "../services/api";
+import { fetchMainDetails } from "../services/api";
 import type { DashboardStats } from "./useStats";
 
-export function useDevices(refreshIntervalMs = 10000) {
+export function useDevices(userId?: string, refreshIntervalMs = 10000) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,14 +17,9 @@ export function useDevices(refreshIntervalMs = 10000) {
   const loadDevices = async (isInitial = false) => {
     if (isInitial) setLoading(true);
     try {
-      // Load devices list and stats concurrently for performance
-      const [devicesData, statsData] = await Promise.all([
-        fetchDevices(),
-        fetchStats()
-      ]);
-      
-      setDevices(devicesData);
-      setStats(statsData);
+      const data = await fetchMainDetails(userId);
+      setDevices(data.devices);
+      setStats(data.stats);
       setError(null);
     } catch (e: any) {
       console.error("useDevices Hook: Failed to load devices data", e);
@@ -42,7 +37,7 @@ export function useDevices(refreshIntervalMs = 10000) {
     }, refreshIntervalMs);
 
     return () => clearInterval(interval);
-  }, [refreshIntervalMs]);
+  }, [userId, refreshIntervalMs]);
 
   return {
     devices,

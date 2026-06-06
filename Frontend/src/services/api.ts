@@ -279,13 +279,13 @@ export const MOCK_SESSIONS: Record<string, SessionInfo> = {
 
 // API Functions querying real FastAPI backend
 export async function fetchDevices(): Promise<Device[]> {
-  const response = await fetch(`${API_BASE_URL}/devices`);
+  const response = await fetch(`${API_BASE_URL}/devices`, { credentials: "include" });
   if (!response.ok) throw new Error("Backend query failed");
   return await response.json();
 }
 
 export async function fetchDevice(id: string): Promise<Device | null> {
-  const response = await fetch(`${API_BASE_URL}/devices/${id}`);
+  const response = await fetch(`${API_BASE_URL}/devices/${id}`, { credentials: "include" });
   if (!response.ok) throw new Error("Backend query failed");
   const data = await response.json();
 
@@ -305,7 +305,7 @@ export async function fetchDevice(id: string): Promise<Device | null> {
 export const fetchDeviceById = fetchDevice;
 
 export async function fetchDeviceLogs(id: string, limit = 100, offset = 0): Promise<LogEvent[]> {
-  const response = await fetch(`${API_BASE_URL}/devices/${id}/logs?limit=${limit}&offset=${offset}`);
+  const response = await fetch(`${API_BASE_URL}/devices/${id}/logs?limit=${limit}&offset=${offset}`, { credentials: "include" });
   if (!response.ok) throw new Error("Backend query failed");
   const rawLogs = await response.json();
 
@@ -329,7 +329,7 @@ export async function fetchDeviceLogs(id: string, limit = 100, offset = 0): Prom
 }
 
 export async function fetchSessionInfo(deviceId: string): Promise<SessionInfo | null> {
-  const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`);
+  const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`, { credentials: "include" });
   if (!response.ok) throw new Error("Backend query failed");
   const data = await response.json();
 
@@ -363,7 +363,23 @@ export async function fetchStats(): Promise<{
   totalLogs: number;
   errorsToday: number;
 }> {
-  const response = await fetch(`${API_BASE_URL}/stats`);
+  const response = await fetch(`${API_BASE_URL}/stats`, { credentials: "include" });
+  if (!response.ok) throw new Error("Backend query failed");
+  return await response.json();
+}
+
+export async function fetchMainDetails(userId?: string): Promise<{
+  logs: LogEvent[];
+  devices: Device[];
+  stats: {
+    totalDevices: number;
+    onlineDevices: number;
+    totalLogs: number;
+    errorsToday: number;
+  };
+}> {
+  const url = userId ? `${API_BASE_URL}/main_details?userId=${userId}` : `${API_BASE_URL}/main_details`;
+  const response = await fetch(url, { credentials: "include" });
   if (!response.ok) throw new Error("Backend query failed");
   return await response.json();
 }

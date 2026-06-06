@@ -5,8 +5,11 @@ import { StatsCards } from "../components/StatsCards";
 import { DeviceGrid } from "../components/DeviceGrid";
 import { LayoutGrid, RefreshCcw } from "lucide-react";
 
+import { useParams } from "react-router-dom";
+
 export const Dashboard: React.FC = () => {
-  const { devices, loading, refetch, stats } = useDevices();
+  const { userId } = useParams<{ userId: string }>();
+  const { devices, loading, refetch, stats } = useDevices(userId);
 
   return (
     <motion.div

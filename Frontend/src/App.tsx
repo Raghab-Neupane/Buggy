@@ -6,18 +6,37 @@ import { useDevices } from "./hooks/useDevices";
 import { Login } from "./pages/login";
 
 function AppContent() {
-  const { devices } = useDevices();
   const location = useLocation();
+  const role = localStorage.getItem("role");
+  const currentUserId = localStorage.getItem("userId");
+
   const isLoginPage = location.pathname === "/login";
 
-  if (isLoginPage) {
-    return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
+  // 1. If not authenticated, force redirect to /login
+  if (!currentUserId || !role) {
+    if (isLoginPage) {
+      return (
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      );
+    }
+    return <Navigate to="/login" replace />;
   }
+
+  // 2. If authenticated and attempting to view login page, redirect to correct dashboard
+  if (isLoginPage) {
+    if (role === "admin") {
+      return <Navigate to="/dashboard" replace />;
+    } else {
+      return <Navigate to={`/dashboard/${currentUserId}`} replace />;
+    }
+  }
+
+  // Fetch only user-specific devices if regular user
+  const { devices } = useDevices(role === "admin" ? undefined : (currentUserId || undefined));
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 select-none">
       {/* Sleek macOS/Arc style sidebar */}
@@ -26,9 +45,21 @@ function AppContent() {
       {/* Main route view workspace panel */}
       <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-slate-50">
         <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/device/:deviceId" element={<DeviceDetails />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          {role === "admin" ? (
+            <>
+              {/* Admin dashboard sees all */}
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/device/:deviceId" element={<DeviceDetails />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </>
+          ) : (
+            <>
+              {/* User dashboard only shows their assigned logs */}
+              <Route path="/dashboard/:userId" element={<Dashboard />} />
+              {/* Fallback to user-specific dashboard */}
+              <Route path="*" element={<Navigate to={`/dashboard/${currentUserId}`} replace />} />
+            </>
+          )}
         </Routes>
       </main>
     </div>
