@@ -1,13 +1,23 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./pages/dashboard";
 import { DeviceDetails } from "./pages/DeviceDetails";
 import { useDevices } from "./hooks/useDevices";
+import { Login } from "./pages/login";
 
 function AppContent() {
-  // Query active device list to populate the sidebar in real time
   const { devices } = useDevices();
+  const location = useLocation();
+  const isLoginPage = location.pathname === "/login";
 
+  if (isLoginPage) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 select-none">
       {/* Sleek macOS/Arc style sidebar */}
