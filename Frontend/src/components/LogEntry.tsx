@@ -112,7 +112,7 @@ export const LogEntry: React.FC<LogEntryProps> = ({ log }) => {
             className="overflow-hidden bg-slate-50/60 border-t border-slate-200 font-mono text-[11px]"
           >
             <div className="p-4 space-y-4 text-slate-700">
-              
+
               {/* Stack Trace if available */}
               {log.stackTrace && (
                 <div className="space-y-1.5">
@@ -133,8 +133,8 @@ export const LogEntry: React.FC<LogEntryProps> = ({ log }) => {
                   <span className="text-slate-800 select-all font-semibold">{log.id}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-400 font-extrabold">Session ID</span>
-                  <span className="text-slate-800 select-all font-semibold">{log.sessionId}</span>
+                  <span className="text-slate-400 font-extrabold">Device ID</span>
+                  <span className="text-slate-800 select-all font-semibold">{log.deviceid}</span>
                 </div>
                 {log.url && (
                   <div className="flex justify-between py-1 border-b border-slate-100 col-span-2">
@@ -142,31 +142,37 @@ export const LogEntry: React.FC<LogEntryProps> = ({ log }) => {
                     <span className="text-brand-600 select-all truncate font-semibold">{log.url}</span>
                   </div>
                 )}
-                {log.userAgent && (
-                  <div className="flex justify-between py-1 border-b border-slate-100 col-span-2">
-                    <span className="text-slate-400 font-extrabold pr-4">User Agent Header</span>
-                    <span className="text-slate-600 select-all truncate">{log.userAgent}</span>
+                {log.deviceName && (
+                  <div className="flex justify-between py-1 border-b border-slate-100">
+                    <span className="text-slate-400 font-extrabold">Device Name</span>
+                    <span className="text-slate-800 font-semibold">{log.deviceName}</span>
+                  </div>
+                )}
+                {log.os && (
+                  <div className="flex justify-between py-1 border-b border-slate-100">
+                    <span className="text-slate-400 font-extrabold">Operating System</span>
+                    <span className="text-slate-800 font-semibold">{log.os}</span>
                   </div>
                 )}
                 <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-400 font-extrabold">IP Address</span>
-                  <span className="text-slate-800 font-semibold">{log.ip || "127.0.0.1"}</span>
+                  <span className="text-slate-400 font-extrabold">Browser</span>
+                  <span className="text-slate-800 font-semibold">{log.browser || "Unknown"} {log.browserVersion ? `v${log.browserVersion}` : ""}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-100">
                   <span className="text-slate-400 font-extrabold">Geolocation</span>
                   <span className="text-slate-800 flex items-center gap-1 font-semibold">
                     <Globe className="w-3.5 h-3.5 text-slate-400" />
-                    {log.city || "Unknown City"}, {log.country || "Localhost"}
+                    {log.latitude !== undefined && log.longitude !== undefined && log.latitude !== null && log.longitude !== null 
+                      ? `${log.latitude.toFixed(4)}, ${log.longitude.toFixed(4)}`
+                      : "Local Network"}
                   </span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-400 font-extrabold">SDK Client</span>
-                  <span className="text-slate-800 font-semibold">v{log.sdkVersion || "1.0.0"}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-400 font-extrabold">App Release</span>
-                  <span className="text-slate-800 font-semibold">v{log.appVersion || "1.0.0"}</span>
-                </div>
+                {log.sessionStartedAt && (
+                  <div className="flex justify-between py-1 border-b border-slate-100 col-span-2">
+                    <span className="text-slate-400 font-extrabold">Session Started At</span>
+                    <span className="text-slate-650 font-semibold">{new Date(log.sessionStartedAt).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
 
             </div>

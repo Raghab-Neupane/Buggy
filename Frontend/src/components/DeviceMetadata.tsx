@@ -13,8 +13,8 @@ export const DeviceMetadata: React.FC<DeviceMetadataProps> = ({ device, session 
   if (!device) return null;
 
   return (
-    <div 
-      style={{ 
+    <div
+      style={{
         boxShadow: `4px 4px 0px 0px #0f172a`
       }}
       className="bg-white border-2 border-slate-900 rounded-2xl p-6 mb-6 relative overflow-hidden transition-all duration-200"
@@ -53,7 +53,9 @@ export const DeviceMetadata: React.FC<DeviceMetadataProps> = ({ device, session 
           </div>
           <div className="min-w-0">
             <span className="text-[8px] text-slate-450 font-extrabold uppercase tracking-wider block">Environment Details</span>
-            <p className="text-xs font-bold text-slate-800 mt-0.5 truncate">{device.browser}</p>
+            <p className="text-xs font-bold text-slate-800 mt-0.5 truncate">
+              {device.browser} {session?.browserVersion ? `v${session.browserVersion}` : ""}
+            </p>
             <p className="text-[9px] text-slate-400 font-semibold truncate">{device.os} System Platform</p>
           </div>
         </div>
@@ -79,7 +81,7 @@ export const DeviceMetadata: React.FC<DeviceMetadataProps> = ({ device, session 
             <Key className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <span className="text-[8px] text-slate-450 font-extrabold uppercase tracking-wider block">Session Key ID</span>
+            <span className="text-[8px] text-slate-450 font-extrabold uppercase tracking-wider block">Device Key Id</span>
             <p className="text-xs font-mono font-bold text-slate-800 mt-0.5 truncate select-text">
               {device.id}
             </p>

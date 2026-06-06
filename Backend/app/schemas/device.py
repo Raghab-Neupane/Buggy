@@ -1,20 +1,19 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
 class DeviceBase(BaseModel):
-  device_name: str = Field(..., serialization_alias="deviceName", validation_alias="deviceName")
-  session_id: str = Field(..., serialization_alias="sessionId", validation_alias="sessionId")
-  ip: Optional[str] = None
-  country: Optional[str] = None
-  city: Optional[str] = None
-  region: Optional[str] = None
-  latitude: Optional[float] = None
-  longitude: Optional[float] = None
+  device_name: Optional[str] = Field(None, serialization_alias="deviceName", validation_alias="deviceName")
+  session_id: str = Field(..., serialization_alias="deviceid", validation_alias="deviceid")
+  session_started_at: Optional[datetime] = Field(None, serialization_alias="sessionStartedAt", validation_alias="sessionStartedAt")
+  location: Optional[Dict[str, Any]] = None
   sdk_version: Optional[str] = Field(None, serialization_alias="sdkVersion", validation_alias="sdkVersion")
   app_version: Optional[str] = Field(None, serialization_alias="appVersion", validation_alias="appVersion")
   browser: Optional[str] = None
+  browser_version: Optional[str] = Field(None, serialization_alias="browserVersion", validation_alias="browserVersion")
   os: Optional[str] = None
+  latitude: Optional[float] = None
+  longitude: Optional[float] = None
   user_agent: Optional[str] = Field(None, serialization_alias="userAgent", validation_alias="userAgent")
 
   model_config = {

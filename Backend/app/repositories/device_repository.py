@@ -1,6 +1,8 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
+# pyrefly: ignore [missing-import]
 from sqlalchemy import select, func, update
+# pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.device import Device
 
@@ -29,6 +31,36 @@ class DeviceRepository:
       update(Device)
       .where(Device.id == device_id)
       .values(last_seen=func.now())
+    )
+    await self.db.execute(query)
+
+  async def update_metadata(
+    self,
+    device_id: str,
+    *,
+    session_id: str,
+    session_started_at: Optional[datetime],
+    device_name: Optional[str],
+    browser: str,
+    browser_version: Optional[str],
+    os: Optional[str],
+    latitude: Optional[float],
+    longitude: Optional[float]
+  ) -> None:
+    query = (
+      update(Device)
+      .where(Device.id == device_id)
+      .values(
+        session_id=session_id,
+        session_started_at=session_started_at,
+        device_name=device_name,
+        browser=browser,
+        browser_version=browser_version,
+        os=os,
+        latitude=latitude,
+        longitude=longitude,
+        last_seen=func.now()
+      )
     )
     await self.db.execute(query)
 

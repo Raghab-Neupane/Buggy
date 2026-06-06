@@ -46,7 +46,11 @@ class DeviceService:
       url_query = (
         select(Log.url)
         .where(Log.device_id == dev.id)
-        .order_by(Log.timestamp.desc())
+        .order_by(
+          func.coalesce(Log.timestamp, Log.created_at).desc(),
+          Log.created_at.desc(),
+          Log.id.desc()
+        )
         .limit(1)
       )
       url_result = await self.log_repo.db.execute(url_query)

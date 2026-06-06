@@ -20,7 +20,11 @@ class LogRepository:
     query = (
       select(Log)
       .where(Log.device_id == device_id)
-      .order_by(Log.timestamp.desc())
+      .order_by(
+        func.coalesce(Log.timestamp, Log.created_at).desc(),
+        Log.created_at.desc(),
+        Log.id.desc()
+      )
       .limit(limit)
       .offset(offset)
     )

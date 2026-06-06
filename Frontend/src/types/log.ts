@@ -3,7 +3,7 @@ export interface LogEvent {
   level: "info" | "warn" | "error" | "debug";
   message: string;
   timestamp: string;
-  sessionId: string;
+  deviceid: string;
   ip?: string;
   country?: string;
   city?: string;
@@ -15,10 +15,28 @@ export interface LogEvent {
   userAgent?: string;
   url?: string;
   stackTrace?: string;
+  location?: {
+    href?: string;
+    origin?: string;
+    protocol?: string;
+    host?: string;
+    hostname?: string;
+    port?: string;
+    pathname?: string;
+    search?: string;
+    hash?: string;
+  };
+  
+  // New SDK fields
+  browser?: string;
+  browserVersion?: string;
+  deviceName?: string;
+  os?: string;
+  sessionStartedAt?: string;
 }
 
 export interface SessionInfo {
-  sessionId: string;
+  deviceid: string;
   userAgent: string;
   url: string;
   duration: number; // In seconds
@@ -28,4 +46,11 @@ export interface SessionInfo {
   city?: string;
   os?: string;
   browser?: string;
+  
+  // New SDK fields
+  browserVersion?: string;
+  deviceName?: string;
+  latitude?: number;
+  longitude?: number;
+  sessionStartedAt?: string;
 }

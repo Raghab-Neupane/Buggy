@@ -42,9 +42,17 @@ export class WebSocketStream {
             level: logData.level.toLowerCase() as any,
             message: logData.message,
             timestamp: logData.timestamp,
-            sessionId: logData.sessionId,
+            deviceid: logData.deviceid,
             url: logData.url,
-            stackTrace: logData.stackTrace
+            stackTrace: logData.stackTrace,
+            location: logData.location,
+            browser: logData.browser,
+            browserVersion: logData.browserVersion,
+            deviceName: logData.deviceName,
+            os: logData.os,
+            latitude: logData.latitude,
+            longitude: logData.longitude,
+            sessionStartedAt: logData.sessionStartedAt
           };
           this.emit(formattedLog);
         } catch {
@@ -53,7 +61,7 @@ export class WebSocketStream {
             level: "info",
             message: event.data,
             timestamp: new Date().toISOString(),
-            sessionId: this.deviceId
+            deviceid: this.deviceId
           };
           this.emit(textLog);
         }
@@ -106,7 +114,7 @@ export class WebSocketStream {
         level: template.level as any,
         message: template.message,
         timestamp: new Date().toISOString(),
-        sessionId: this.deviceId
+        deviceid: this.deviceId
       };
       this.emit(mockLog);
     }, 2500);
@@ -127,7 +135,7 @@ export class WebSocketStream {
       level: level,
       message: customMessage || `[Manual Demo] ${template.message}`,
       timestamp: new Date().toISOString(),
-      sessionId: this.deviceId
+      deviceid: this.deviceId
     };
     this.emit(mockLog);
   }
