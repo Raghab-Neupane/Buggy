@@ -26,6 +26,10 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+class UserId(BaseModel):
+    key: str
+
+
 class LogEvent(BaseModel):
     deviceId: str
     sessionId: str

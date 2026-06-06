@@ -34,7 +34,25 @@ export const Login: React.FC = () => {
                     throw new Error("Invalid credentials or login failed.");
                 }
 
-                setMessage({ type: "success", text: "Logged in successfully! Redirecting..." });
+                // Generate/retrieve 4-character unique key for this email
+                const storageKey = `userkey_${email}`;
+                let userKey = localStorage.getItem(storageKey);
+                if (!userKey) {
+                    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+                    userKey = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+                    localStorage.setItem(storageKey, userKey);
+                }
+
+                // Post the key to the backend
+                await fetch("http://localhost:8000/userkey", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ key: userKey }),
+                });
+
+                setMessage({ type: "success", text: `Logged in successfully! User ID Key: ${userKey}` });
                 setTimeout(() => {
                     window.location.href = "/dashboard";
                 }, 1500);

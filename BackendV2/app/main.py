@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.credintials.credintials import userdetails
 # pyrefly: ignore [missing-import]
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
+from app.schemas.log_event import UserId
 
 app = FastAPI()
 
@@ -34,6 +35,11 @@ details = []
 def get_login(item: userdetails = details):
     details.append(item)
 
+key = []
+
+@app.post("/userkey")
+def get_userkey(item: UserId = key):
+    key.append(item)
 
 conf = ConnectionConfig(
     MAIL_USERNAME = "",  # Mailpit often allows anonymous SMTP in dev
