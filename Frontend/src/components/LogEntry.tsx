@@ -167,6 +167,14 @@ export const LogEntry: React.FC<LogEntryProps> = ({ log }) => {
                       : "Local Network"}
                   </span>
                 </div>
+                {/* Address */}
+                {log.location?.href && (
+                  <div className="flex justify-between py-1 border-b border-slate-100 col-span-2">
+                    <span className="text-slate-400 font-extrabold">Address</span>
+                    <span className="text-slate-650 font-semibold break-all">{log.location.href}</span>
+                  </div>
+                )}
+                {/* Session Started At */}
                 {log.sessionStartedAt && (
                   <div className="flex justify-between py-1 border-b border-slate-100 col-span-2">
                     <span className="text-slate-400 font-extrabold">Session Started At</span>

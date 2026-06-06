@@ -5,6 +5,40 @@ import { DeviceDetails } from "./pages/DeviceDetails";
 import { useDevices } from "./hooks/useDevices";
 import { Login } from "./pages/login";
 
+function AuthenticatedApp({ role, currentUserId }: { role: string; currentUserId: string }) {
+  // Fetch only user-specific devices if regular user
+  const { devices } = useDevices(role === "admin" ? undefined : (currentUserId || undefined));
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 select-none">
+      {/* Sleek macOS/Arc style sidebar */}
+      <Sidebar devices={devices} />
+
+      {/* Main route view workspace panel */}
+      <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-slate-50">
+        <Routes>
+          {role === "admin" ? (
+            <>
+              {/* Admin dashboard sees all */}
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/device/:deviceId" element={<DeviceDetails />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </>
+          ) : (
+            <>
+              {/* User dashboard only shows their assigned logs */}
+              <Route path="/dashboard/:userId" element={<Dashboard />} />
+              <Route path="/device/:deviceId" element={<DeviceDetails />} />
+              {/* Fallback to user-specific dashboard */}
+              <Route path="*" element={<Navigate to={`/dashboard/${currentUserId}`} replace />} />
+            </>
+          )}
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
 function AppContent() {
   const location = useLocation();
   const role = localStorage.getItem("role");
@@ -34,36 +68,7 @@ function AppContent() {
     }
   }
 
-  // Fetch only user-specific devices if regular user
-  const { devices } = useDevices(role === "admin" ? undefined : (currentUserId || undefined));
-
-  return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 select-none">
-      {/* Sleek macOS/Arc style sidebar */}
-      <Sidebar devices={devices} />
-
-      {/* Main route view workspace panel */}
-      <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-slate-50">
-        <Routes>
-          {role === "admin" ? (
-            <>
-              {/* Admin dashboard sees all */}
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/device/:deviceId" element={<DeviceDetails />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </>
-          ) : (
-            <>
-              {/* User dashboard only shows their assigned logs */}
-              <Route path="/dashboard/:userId" element={<Dashboard />} />
-              {/* Fallback to user-specific dashboard */}
-              <Route path="*" element={<Navigate to={`/dashboard/${currentUserId}`} replace />} />
-            </>
-          )}
-        </Routes>
-      </main>
-    </div>
-  );
+  return <AuthenticatedApp role={role} currentUserId={currentUserId} />;
 }
 
 function App() {

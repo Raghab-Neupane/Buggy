@@ -1,8 +1,9 @@
-import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, ShieldAlert, Cpu, Settings, Terminal, Activity, HelpCircle } from "lucide-react";
+import { LayoutDashboard, ShieldAlert, Cpu, Settings, Terminal, Activity, HelpCircle, LogOut, Copy, Check, Zap } from "lucide-react";
 import type { Device } from "../types/device";
+import { logout } from "../services/api";
 
 interface SidebarProps {
   devices: Device[];
@@ -10,7 +11,21 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const onlineDevices = devices.filter(d => d.online);
+  const [copied, setCopied] = useState(false);
+  const userId = localStorage.getItem("userId") || "your_id";
+  const initSnippet = `import { init } from 'npmpackagebuggy'
+
+init({
+  endpoint: "http://localhost:8000/logs/${userId}"
+});`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(initSnippet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -141,6 +156,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
         </div>
       </div>
 
+      {/* 🟡 YOUR API — Compact Yellow Game Box */}
+      <div className="mb-4 px-1">
+        <div
+          className="relative rounded-xl border-[3px] border-slate-900 px-3 py-2.5 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] group cursor-pointer"
+          style={{ background: "linear-gradient(135deg, #fef08a 0%, #fde047 50%, #facc15 100%)" }}
+          onClick={handleCopy}
+          title="Click to copy"
+        >
+          {/* Label */}
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-amber-800" />
+              <span className="text-[9px] font-black text-amber-900 uppercase tracking-widest">Your API</span>
+            </div>
+            <div className="p-0.5 rounded bg-amber-800/20 text-amber-800 group-hover:bg-amber-800 group-hover:text-white transition-all">
+              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            </div>
+          </div>
+
+          {/* Link highlight */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-lg px-2.5 py-1.5 border-2 border-slate-900 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)]">
+            <span className="text-[10px] font-mono font-black text-slate-900 break-all select-all">
+              http://localhost:8000/logs/{userId}
+            </span>
+          </div>
+
+          {/* Decorative dots */}
+          <div className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-slate-900" />
+          <div className="absolute -bottom-1.5 -left-1.5 w-2.5 h-2.5 rounded-full bg-yellow-300 border-2 border-slate-900" />
+        </div>
+      </div>
+
       {/* Sidebar Footer */}
       <div className="pt-3 border-t border-slate-200 space-y-2">
         <div className="flex items-center justify-between text-[9px] text-slate-500 px-1 font-bold">
@@ -156,6 +203,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
           </button>
           <button className="p-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer">
             <HelpCircle className="w-4 h-4" />
+          </button>
+          <button onClick={async () => {
+            await logout();
+            navigate('/login');
+          }} className="p-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer" title="Logout">
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>

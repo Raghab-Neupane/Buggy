@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Device } from "../types/device";
 import { fetchMainDetails } from "../services/api";
 import type { DashboardStats } from "./useStats";
 
-export function useDevices(userId?: string, refreshIntervalMs = 10000) {
+export function useDevices(userId?: string) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -13,6 +13,11 @@ export function useDevices(userId?: string, refreshIntervalMs = 10000) {
     errorsToday: 0,
     onlineDevices: 0,
   });
+
+  const devicesRef = useRef<Device[]>([]);
+  useEffect(() => {
+    devicesRef.current = devices;
+  }, [devices]);
 
   const loadDevices = async (isInitial = false) => {
     if (isInitial) setLoading(true);
@@ -32,12 +37,71 @@ export function useDevices(userId?: string, refreshIntervalMs = 10000) {
   useEffect(() => {
     loadDevices(true);
 
-    const interval = setInterval(() => {
-      loadDevices(false);
-    }, refreshIntervalMs);
+    const wsHost = window.location.hostname === "127.0.0.1" ? "127.0.0.1:8000" : "localhost:8000";
+    const wsUrl = userId 
+      ? `ws://${wsHost}/ws/dashboard?userId=${userId}` 
+      : `ws://${wsHost}/ws/dashboard`;
+      
+    const socket = new WebSocket(wsUrl);
 
-    return () => clearInterval(interval);
-  }, [userId, refreshIntervalMs]);
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "log_event") {
+          const newLog = data.payload;
+          
+          setDevices((prevDevices) => {
+            const exists = prevDevices.find(d => d.id === newLog.deviceid);
+            if (exists) {
+              return prevDevices.map(d => {
+                if (d.id === newLog.deviceid) {
+                  return {
+                    ...d,
+                    logCount: d.logCount + 1,
+                    errorCount: newLog.level.toLowerCase() === "error" ? d.errorCount + 1 : d.errorCount,
+                    lastSeen: new Date(newLog.timestamp).toLocaleTimeString(),
+                    online: true
+                  };
+                }
+                return d;
+              });
+            } else {
+              return [...prevDevices, {
+                id: newLog.deviceid,
+                name: newLog.deviceName || `${newLog.os || 'Unknown'} Device`,
+                browser: newLog.browser || "Unknown",
+                os: newLog.os || "Unknown",
+                online: true,
+                logCount: 1,
+                errorCount: newLog.level.toLowerCase() === "error" ? 1 : 0,
+                lastSeen: new Date(newLog.timestamp).toLocaleTimeString()
+              }];
+            }
+          });
+
+          setStats((prevStats) => {
+            const alreadyExists = devicesRef.current.some(d => d.id === newLog.deviceid);
+            return {
+              totalDevices: alreadyExists ? prevStats.totalDevices : prevStats.totalDevices + 1,
+              onlineDevices: prevStats.onlineDevices, // Simplification
+              totalLogs: prevStats.totalLogs + 1,
+              errorsToday: newLog.level.toLowerCase() === "error" ? prevStats.errorsToday + 1 : prevStats.errorsToday
+            };
+          });
+        }
+      } catch (err) {
+        console.error("Dashboard WS message parse error:", err);
+      }
+    };
+
+    socket.onerror = (err) => {
+      console.warn("Dashboard WS error, fallback to REST logic", err);
+    };
+
+    return () => {
+      socket.close();
+    };
+  }, [userId]);
 
   return {
     devices,

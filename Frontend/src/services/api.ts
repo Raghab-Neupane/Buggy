@@ -284,6 +284,18 @@ export async function fetchDevices(): Promise<Device[]> {
   return await response.json();
 }
 
+// Logout helper – clears server-side cookie and client storage
+export async function logout(): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/logout`, { method: "POST", credentials: "include" });
+  // Ignore response body; just clear local auth state on success
+  if (!response.ok) {
+    console.warn("Logout request failed");
+  }
+  // Remove auth tokens from local storage
+  localStorage.removeItem("role");
+  localStorage.removeItem("userId");
+}
+
 export async function fetchDevice(id: string): Promise<Device | null> {
   const response = await fetch(`${API_BASE_URL}/devices/${id}`, { credentials: "include" });
   if (!response.ok) throw new Error("Backend query failed");
@@ -339,14 +351,14 @@ export async function fetchSessionInfo(deviceId: string): Promise<SessionInfo | 
     : 120;
 
   return {
-    deviceid: data.session_id || deviceId,
+    deviceid: data.id || deviceId,
     userAgent: data.user_agent || "Unknown Agent",
     url: data.url || "https://buggy.dev/",
     duration: duration || 120,
     logCount: logs.length,
     errorCount: logs.filter(l => l.level === "error").length,
-    country: (data.latitude !== null && data.longitude !== null && data.latitude !== undefined) ? `Coords: ${data.latitude}, ${data.longitude}` : "Local Network",
-    city: data.device_name || "Unknown Device",
+    country: data.location || "Local Connection",
+    city: "",
     os: data.os,
     browser: data.browser,
     browserVersion: data.browser_version,

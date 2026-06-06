@@ -28,7 +28,8 @@ export class WebSocketStream {
   }
 
   public connect(): void {
-    const wsUrl = `ws://localhost:8000/devices/${this.deviceId}/stream`;
+    const wsHost = window.location.hostname === "127.0.0.1" ? "127.0.0.1:8000" : "localhost:8000";
+    const wsUrl = `ws://${wsHost}/devices/${this.deviceId}/stream`;
 
     try {
       this.socket = new WebSocket(wsUrl);
@@ -68,17 +69,14 @@ export class WebSocketStream {
       };
 
       this.socket.onerror = () => {
-        console.warn("WebSocket stream error, starting local simulation.");
-        this.startSimulation();
+        console.warn("WebSocket stream error.");
       };
 
       this.socket.onclose = () => {
-        console.warn("WebSocket stream closed, starting local simulation.");
-        this.startSimulation();
+        console.warn("WebSocket stream closed.");
       };
     } catch (e) {
-      console.warn("WebSocket connection exception, starting local simulation.", e);
-      this.startSimulation();
+      console.warn("WebSocket connection exception.", e);
     }
   }
 
@@ -102,7 +100,7 @@ export class WebSocketStream {
     this.listeners.forEach((listener) => listener(log));
   }
 
-  private startSimulation(): void {
+  public startSimulation(): void {
     if (this.isSimulationActive) return;
     this.isSimulationActive = true;
     console.log(`Starting real-time simulation fallback for device: ${this.deviceId}`);
@@ -120,7 +118,7 @@ export class WebSocketStream {
     }, 2500);
   }
 
-  private stopSimulation(): void {
+  public stopSimulation(): void {
     this.isSimulationActive = false;
     if (this.mockInterval) {
       clearInterval(this.mockInterval);

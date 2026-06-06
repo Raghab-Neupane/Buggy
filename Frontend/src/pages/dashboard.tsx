@@ -3,20 +3,21 @@ import { motion } from "framer-motion";
 import { useDevices } from "../hooks/useDevices";
 import { StatsCards } from "../components/StatsCards";
 import { DeviceGrid } from "../components/DeviceGrid";
-import { LayoutGrid, RefreshCcw } from "lucide-react";
+import { LayoutGrid, RefreshCcw, User } from "lucide-react";
 
 import { useParams } from "react-router-dom";
 
 export const Dashboard: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
-  const { devices, loading, refetch, stats } = useDevices(userId);
+  const currentUserId = userId || localStorage.getItem("userId") || "";
+  const { devices, loading, refetch, stats } = useDevices(currentUserId || undefined);
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto h-screen mac-scrollbar"
+      className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto h-screen mac-scrollbar cartoon-net-bg"
     >
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
@@ -24,8 +25,14 @@ export const Dashboard: React.FC = () => {
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <LayoutGrid className="w-6 h-6 text-brand-500" />
             Device Directory
+            {currentUserId && (
+              <span className="ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-50 border-2 border-slate-900 rounded-lg shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] text-xs font-black text-brand-700">
+                <User className="w-3.5 h-3.5" />
+                {currentUserId}
+              </span>
+            )}
           </h1>
-          <p className="text-xs text-slate-550 font-bold mt-1">
+          <p className="text-xs text-slate-500 font-bold mt-1">
             Registered devices, application clients, and browser host telemetry.
           </p>
         </div>

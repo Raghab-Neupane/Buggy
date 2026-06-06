@@ -31,16 +31,16 @@ class UserId(BaseModel):
 
 
 class LogEvent(BaseModel):
-    deviceId: str
-    sessionId: str
+    deviceId: Optional[str] = None
+    sessionId: Optional[str] = None
     sessionStartedAt: Optional[str] = None
-    level: str
-    message: str
-    timestamp: str
-    browser: str
+    level: str = "info"
+    message: str = ""
+    timestamp: Optional[str] = None
+    browser: Optional[str] = None
     browserVersion: Optional[str] = None
     deviceName: Optional[str] = None
     os: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    url: str
+    url: Optional[str] = None

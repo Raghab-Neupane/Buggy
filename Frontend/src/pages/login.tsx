@@ -1,15 +1,21 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, ArrowLeft, UserPlus, LogIn } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { InitSnippetModal } from "../components/InitSnippetModal";
+import { AnimatePresence, motion } from "framer-motion";
+import { Mail, Lock, UserPlus, ArrowLeft, LogIn } from "lucide-react";
 
 type ViewState = "login" | "signup" | "forgot";
 
 export const Login: React.FC = () => {
+    const navigate = useNavigate();
     const [view, setView] = useState<ViewState>("login");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [role, setRole] = useState<"user" | "admin">("user");
+    const [initSnippet, setInitSnippet] = useState<any>(null);
+    const [showInitModal, setShowInitModal] = useState(false);
+    const [redirectUrl, setRedirectUrl] = useState<string>("");
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -44,14 +50,14 @@ export const Login: React.FC = () => {
                 localStorage.setItem("userId", data.user_id);
                 localStorage.setItem("email", email);
 
-                setMessage({ type: "success", text: `Logged in successfully! Redirecting...` });
-                setTimeout(() => {
-                    if (data.role === "admin") {
-                        window.location.href = "/dashboard";
-                    } else {
-                        window.location.href = `/dashboard/${data.user_id}`;
-                    }
-                }, 1500);
+                // Fetch init snippet for the user
+                const snippetRes = await fetch(`http://localhost:8000/init/${data.user_id}`);
+                const snippetData = await snippetRes.json();
+                setInitSnippet(snippetData);
+                setShowInitModal(true);
+                setRedirectUrl(data.role === "admin" ? "/dashboard" : `/dashboard/${data.user_id}`);
+
+                setMessage({ type: "success", text: `Logged in successfully!` });
             } else if (view === "signup") {
                 const response = await fetch("http://localhost:8000/signup", {
                     method: "POST",
@@ -98,6 +104,14 @@ export const Login: React.FC = () => {
         setConfirmPassword("");
         setRole("user");
         setView(newView);
+    };
+
+    const handleModalClose = () => {
+        setShowInitModal(false);
+        // Navigate to dashboard after closing the modal
+        if (redirectUrl) {
+            navigate(redirectUrl);
+        }
     };
 
     return (
@@ -255,22 +269,7 @@ export const Login: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Admin Gateway Checkbox Toggle */}
-                                <div className="flex items-center gap-2 py-1 select-none">
-                                    <input
-                                        type="checkbox"
-                                        id="admin_checkbox"
-                                        checked={role === "admin"}
-                                        onChange={(e) => setRole(e.target.checked ? "admin" : "user")}
-                                        className="w-4 h-4 text-emerald-600 border-2 border-slate-900 rounded focus:ring-0 cursor-pointer"
-                                    />
-                                    <label
-                                        htmlFor="admin_checkbox"
-                                        className="text-xs font-black text-slate-700 uppercase tracking-tight cursor-pointer"
-                                    >
-                                        login as admin
-                                    </label>
-                                </div>
+
 
                                 <button
                                     type="submit"
@@ -283,7 +282,7 @@ export const Login: React.FC = () => {
                             <div className="mt-6 text-center">
                                 <button
                                     onClick={() => switchView("login")}
-                                    className="text-xs font-bold text-slate-550 hover:text-slate-800 cursor-pointer"
+                                    className="text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
                                 >
                                     Already have an account? <span className="text-indigo-600 hover:underline">Sign In</span>
                                 </button>
@@ -302,7 +301,7 @@ export const Login: React.FC = () => {
                         >
                             <button
                                 onClick={() => switchView("login")}
-                                className="flex items-center gap-1.5 text-xs font-bold text-slate-550 hover:text-slate-800 mb-6 cursor-pointer"
+                                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 mb-6 cursor-pointer"
                             >
                                 <ArrowLeft className="w-4 h-4" />
                                 Back to Sign In
@@ -312,7 +311,7 @@ export const Login: React.FC = () => {
                                 <Lock className="w-6 h-6 text-rose-500" />
                                 <h2 className="text-2xl font-extrabold text-slate-900">Reset Password</h2>
                             </div>
-                            <p className="text-xs text-slate-550 font-bold mb-6">
+                            <p className="text-xs text-slate-500 font-bold mb-6">
                                 Enter your email address and we'll send you a link to reset your password.
                             </p>
 
@@ -352,6 +351,14 @@ export const Login: React.FC = () => {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Init Snippet Modal — shown after successful login */}
+            {showInitModal && (
+                <InitSnippetModal
+                    snippet={initSnippet}
+                    onClose={handleModalClose}
+                />
+            )}
         </div>
     );
 };
