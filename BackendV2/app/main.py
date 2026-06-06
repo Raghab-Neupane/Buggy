@@ -1,12 +1,28 @@
 from fastapi import FastAPI
+from app.schemas.log_event import LogEvent
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-@app.get("/dashboard")
-def read_root():
-    return('hello world')
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, be more specific
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# @app.post("/logs")
-# def ingest_logs(request: Request):
-    
-    
+logs = []    
+
+
+@app.post("/logs")
+def log_event(item: LogEvent = logs):
+    logs.append(item)
+    return logs
+
+
+
+@app.get("/logs")
+def get_logs():
+    return logs
