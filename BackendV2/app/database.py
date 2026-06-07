@@ -20,6 +20,7 @@ class UserDB(Base):
     user_id = Column(String, unique=True, index=True, nullable=False)  # 4-character unique key
     # Store logs as a JSON array per user
     logs = Column(JSONB, default=list)
+    token_version = Column(Integer, default=0, nullable=False)
 
 
 class PasswordResetToken(Base):

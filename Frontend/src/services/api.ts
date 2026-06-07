@@ -1,22 +1,18 @@
 import type { Device } from "../types/device";
 import type { LogEvent, SessionInfo } from "../types/log";
-
-const API_BASE_URL = "http://localhost:8000";
-
+import ApiClient from "./ApiClient";
 
 // API Functions querying real FastAPI backend
 export async function fetchDevices(): Promise<Device[]> {
-  const response = await fetch(`${API_BASE_URL}/devices`, { credentials: "include" });
-  if (!response.ok) throw new Error("Backend query failed");
-  return await response.json();
+  return await ApiClient.get<Device[]>("/devices");
 }
 
 // Logout helper – clears server-side cookie and client storage
 export async function logout(): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/logout`, { method: "POST", credentials: "include" });
-  // Ignore response body; just clear local auth state on success
-  if (!response.ok) {
-    console.warn("Logout request failed");
+  try {
+    await ApiClient.post<void>("/logout");
+  } catch (error) {
+    console.warn("Logout request failed", error);
   }
   // Remove auth tokens from local storage
   localStorage.removeItem("role");
@@ -24,9 +20,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function fetchDevice(id: string): Promise<Device | null> {
-  const response = await fetch(`${API_BASE_URL}/devices/${id}`, { credentials: "include" });
-  if (!response.ok) throw new Error("Backend query failed");
-  const data = await response.json();
+  const data = await ApiClient.get<any>(`/devices/${id}`);
 
   const isOnline = data.online !== undefined ? data.online : (Date.now() - new Date(data.last_seen).getTime()) < 300000;
   return {
@@ -44,9 +38,7 @@ export async function fetchDevice(id: string): Promise<Device | null> {
 export const fetchDeviceById = fetchDevice;
 
 export async function fetchDeviceLogs(id: string, limit = 100, offset = 0): Promise<LogEvent[]> {
-  const response = await fetch(`${API_BASE_URL}/devices/${id}/logs?limit=${limit}&offset=${offset}`, { credentials: "include" });
-  if (!response.ok) throw new Error("Backend query failed");
-  const rawLogs = await response.json();
+  const rawLogs = await ApiClient.get<any[]>(`/devices/${id}/logs?limit=${limit}&offset=${offset}`);
 
   return rawLogs.map((l: any) => ({
     id: l.id,
@@ -68,10 +60,7 @@ export async function fetchDeviceLogs(id: string, limit = 100, offset = 0): Prom
 }
 
 export async function fetchSessionInfo(deviceId: string): Promise<SessionInfo | null> {
-  const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`, { credentials: "include" });
-  if (!response.ok) throw new Error("Backend query failed");
-  const data = await response.json();
-
+  const data = await ApiClient.get<any>(`/devices/${deviceId}`);
   const logs = await fetchDeviceLogs(deviceId, 20, 0);
   const duration = logs.length > 1
     ? Math.max(0, Math.floor((new Date(logs[0].timestamp).getTime() - new Date(logs[logs.length - 1].timestamp).getTime()) / 1000))
@@ -102,9 +91,12 @@ export async function fetchStats(): Promise<{
   totalLogs: number;
   errorsToday: number;
 }> {
-  const response = await fetch(`${API_BASE_URL}/stats`, { credentials: "include" });
-  if (!response.ok) throw new Error("Backend query failed");
-  return await response.json();
+  return await ApiClient.get<{
+    totalDevices: number;
+    onlineDevices: number;
+    totalLogs: number;
+    errorsToday: number;
+  }>("/stats");
 }
 
 export async function fetchMainDetails(userId?: string): Promise<{
@@ -117,8 +109,15 @@ export async function fetchMainDetails(userId?: string): Promise<{
     errorsToday: number;
   };
 }> {
-  const url = userId ? `${API_BASE_URL}/main_details?userId=${userId}` : `${API_BASE_URL}/main_details`;
-  const response = await fetch(url, { credentials: "include" });
-  if (!response.ok) throw new Error("Backend query failed");
-  return await response.json();
+  const path = userId ? `/main_details?userId=${userId}` : "/main_details";
+  return await ApiClient.get<{
+    logs: LogEvent[];
+    devices: Device[];
+    stats: {
+      totalDevices: number;
+      onlineDevices: number;
+      totalLogs: number;
+      errorsToday: number;
+    };
+  }>(path);
 }

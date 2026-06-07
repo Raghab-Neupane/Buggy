@@ -107,9 +107,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "http://127.0.0.1:5173",
         "http://localhost:5175",
-        "http://127.0.0.1:5175",
         "http://localhost:3000"
     ],
     allow_credentials=True,
@@ -165,7 +163,7 @@ def login(item: UserLogin, response: Response, db: Session = Depends(get_db)):
     if not verify_password(item.password, db_user.password_hash):
         raise HTTPException(status_code=400, detail="Invalid email or password")
     
-    token = create_access_token(db_user.user_id, item.email, db_user.role)
+    token = create_access_token(db_user.user_id, item.email, db_user.role, db_user.token_version)
     
     # Set JWT in HttpOnly Cookie
     response.set_cookie(
@@ -414,6 +412,7 @@ def get_devices(db: Session = Depends(get_db)):
                 "logCount": 0,
                 "errorCount": 0,
                 "lastSeen": l.get("timestamp"),
+                "url": l.get("url") or "",
                 "latitude": l.get("latitude"),
                 "longitude": l.get("longitude"),
                 "address": l.get("location") or "Unknown Location"
@@ -516,7 +515,8 @@ def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)
                 "online": d_id in manager.active_connections,
                 "logCount": 0,
                 "errorCount": 0,
-                "lastSeen": l.get("timestamp")
+                "lastSeen": l.get("timestamp"),
+                "url": l.get("url") or ""
             }
         devices_map[d_id]["logCount"] += 1
         if (l.get("level") or "").lower() == "error":
@@ -632,6 +632,7 @@ def reset_password(item: ResetPasswordRequest, db: Session = Depends(get_db)):
 
     # Update the user's password using existing hashing mechanism
     user.password_hash = hash_password(item.new_password)
+    user.token_version += 1
     db.add(user)
 
     # Mark this token as used

@@ -15,6 +15,9 @@ SECRET_KEY = "your-super-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
+from sqlalchemy.orm import Session
+from app.database import get_db, UserDB
+
 # =========================
 # PASSWORD HASHING
 # =========================
@@ -42,7 +45,8 @@ def verify_password(
 def create_access_token(
     user_id: str,
     email: str,
-    role: str
+    role: str,
+    token_version: int = 0
 ) -> str:
     expire = datetime.utcnow() + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
@@ -52,6 +56,7 @@ def create_access_token(
         "sub": user_id,
         "email": email,
         "role": role,
+        "token_version": token_version,
         "exp": expire
     }
 
@@ -69,7 +74,8 @@ security = HTTPBearer(auto_error=False)
 
 def verify_token(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db)
 ):
     token = None
     if credentials:
@@ -90,8 +96,18 @@ def verify_token(
             algorithms=[ALGORITHM]
         )
 
+        user_id = payload.get("sub")
+        token_version = payload.get("token_version")
+
+        user = db.query(UserDB).filter(UserDB.user_id == user_id).first()
+        if not user or user.token_version != token_version:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session has expired. Please log in again."
+            )
+
         return {
-            "user_id": payload.get("sub"),
+            "user_id": user_id,
             "email": payload.get("email"),
             "role": payload.get("role")
         }

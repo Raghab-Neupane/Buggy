@@ -71,19 +71,22 @@ export function useDevices(userId?: string) {
                     ...d,
                     logCount: d.logCount + 1,
                     errorCount: newLog.level.toLowerCase() === "error" ? d.errorCount + 1 : d.errorCount,
-                    lastSeen: new Date(newLog.timestamp).toLocaleTimeString(),
-                    online: newLog.isOnline !== undefined ? newLog.isOnline : d.online
+                    lastSeen: new Date(newLog.timestamp).toLocaleTimeString()
+                    // NOTE: device.online is ONLY updated via status_change events
+                    // (broadcast by backend when /devices/{id}/stream WS connects or disconnects)
                   };
                 }
                 return d;
               });
             } else {
+              // New device seen for first time — online state will be set correctly
+              // by the next status_change broadcast from the backend
               return [...prevDevices, {
                 id: logDeviceId,
                 name: newLog.deviceName || `${newLog.os || 'Unknown'} Device`,
                 browser: newLog.browser || "Unknown",
                 os: newLog.os || "Unknown",
-                online: newLog.isOnline !== undefined ? newLog.isOnline : true,
+                online: false, // conservative default; status_change will set the real value
                 logCount: 1,
                 errorCount: newLog.level.toLowerCase() === "error" ? 1 : 0,
                 lastSeen: new Date(newLog.timestamp).toLocaleTimeString()
@@ -118,19 +121,15 @@ export function useDevices(userId?: string) {
     };
 
     socket.onerror = (err) => {
-      console.warn("Dashboard WS error, fallback to REST logic", err);
-      if (isMounted) {
-        setDevices((prevDevices) => prevDevices.map(d => ({ ...d, online: false })));
-        setStats((prevStats) => ({ ...prevStats, onlineDevices: 0 }));
-      }
+      console.warn("Dashboard WS error", err);
+      // Do NOT mark devices offline here — this only means the dashboard's own
+      // connection to /ws/dashboard dropped, not the device stream connections.
     };
 
     socket.onclose = () => {
       console.warn("Dashboard WS connection closed.");
-      if (isMounted) {
-        setDevices((prevDevices) => prevDevices.map(d => ({ ...d, online: false })));
-        setStats((prevStats) => ({ ...prevStats, onlineDevices: 0 }));
-      }
+      // Do NOT mark devices offline here — the device stream state is managed
+      // exclusively via status_change messages from the backend.
     };
 
     return () => {

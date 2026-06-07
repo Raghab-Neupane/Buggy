@@ -11,7 +11,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ online, className = ""
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold select-none border transition-all duration-300 ${
         online
           ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-sm shadow-emerald-500/5"
-          : "bg-zinc-800/60 text-zinc-500 border-zinc-700/30"
+          : "bg-red-500/10 text-red-400 border-red-500/25 shadow-sm shadow-red-500/5"
       } ${className}`}
     >
       <span
@@ -22,7 +22,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ online, className = ""
         )}
         <span
           className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
-            online ? "bg-emerald-400 glow-dot-active" : "bg-zinc-600"
+            online ? "bg-emerald-400 glow-dot-active" : "bg-red-400"
           }`}
         ></span>
       </span>
