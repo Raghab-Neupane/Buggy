@@ -8,10 +8,12 @@ from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 import random
 import string
 import datetime
+import secrets
+import hashlib
 
 # Database imports
 from sqlalchemy.orm import Session
-from app.database import engine, Base, UserDB, get_db
+from app.database import engine, Base, UserDB, PasswordResetToken, get_db
     
 # Create DB tables
 Base.metadata.create_all(bind=engine)
@@ -102,6 +104,13 @@ class UserSignup(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 @app.post("/signup")
 def signup(user: UserSignup, db: Session = Depends(get_db)):
@@ -525,6 +534,111 @@ def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)
         "devices": devices_list,
         "stats": stats
     }
+
+# =========================
+# PASSWORD RESET ENDPOINTS
+# =========================
+
+FRONTEND_URL = "http://localhost:5175"
+
+@app.post("/auth/forgot-password")
+async def forgot_password(item: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Generate a secure reset token and email the reset link."""
+    user = db.query(UserDB).filter(UserDB.email == item.email).first()
+
+    # Always return success to avoid user enumeration attacks
+    if not user:
+        return {"status": "success", "message": "If that email exists, a reset link has been sent."}
+
+    # Invalidate all previous unused reset tokens for this user
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used == False
+    ).update({"used": True})
+    db.commit()
+
+    # Generate a secure random token
+    raw_token = secrets.token_urlsafe(48)
+
+    # Store only the SHA-256 hash in the database
+    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+
+    now = datetime.datetime.utcnow()
+    reset_record = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=now + datetime.timedelta(minutes=30),
+        used=False,
+        created_at=now
+    )
+    db.add(reset_record)
+    db.commit()
+
+    # Build reset URL with the raw token (not the hash)
+    reset_link = f"{FRONTEND_URL}/reset-password?token={raw_token}"
+
+    # Send email using existing Mailpit configuration
+    email_body = f"""\
+<p>You requested a password reset.</p>
+<p><a href="{reset_link}">Reset Password</a></p>
+<p>This link expires in 30 minutes.</p>
+<p>If you did not request this reset, you can safely ignore this email.</p>"""
+
+    message = MessageSchema(
+        subject="Reset Your Password",
+        recipients=[item.email],
+        body=email_body,
+        subtype=MessageType.html
+    )
+    fm = FastMail(conf)
+    await fm.send_message(message)
+
+    return {"status": "success", "message": "If that email exists, a reset link has been sent."}
+
+
+@app.post("/auth/reset-password")
+def reset_password(item: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Validate the reset token and update the user's password."""
+    # Hash the incoming token to match against stored hash
+    token_hash = hashlib.sha256(item.token.encode('utf-8')).hexdigest()
+
+    # Find matching reset token record
+    reset_record = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token_hash == token_hash,
+        PasswordResetToken.used == False
+    ).first()
+
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+
+    # Check expiration
+    if datetime.datetime.utcnow() > reset_record.expires_at:
+        reset_record.used = True
+        db.commit()
+        raise HTTPException(status_code=400, detail="Reset token has expired.")
+
+    # Find the user
+    user = db.query(UserDB).filter(UserDB.id == reset_record.user_id).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found.")
+
+    # Update the user's password using existing hashing mechanism
+    user.password_hash = hash_password(item.new_password)
+    db.add(user)
+
+    # Mark this token as used
+    reset_record.used = True
+
+    # Invalidate all other active reset tokens for this user
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used == False
+    ).update({"used": True})
+
+    db.commit()
+
+    return {"status": "success", "message": "Password has been reset successfully."}
+
 
 conf = ConnectionConfig(
     MAIL_USERNAME = "",  # Mailpit allows anonymous SMTP in dev

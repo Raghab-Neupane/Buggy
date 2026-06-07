@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import JSONB
@@ -22,6 +22,16 @@ class UserDB(Base):
     logs = Column(JSONB, default=list)
 
 
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String, nullable=False, index=True)  # SHA-256 hash of the raw token
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, nullable=False)
+
 
 def get_db():
     db = SessionLocal()
@@ -29,3 +39,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

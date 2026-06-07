@@ -4,6 +4,7 @@ import { Dashboard } from "./pages/dashboard";
 import { DeviceDetails } from "./pages/DeviceDetails";
 import { useDevices } from "./hooks/useDevices";
 import { Login } from "./pages/login";
+import { ResetPassword } from "./pages/ResetPassword";
 
 function AuthenticatedApp({ role, currentUserId }: { role: string; currentUserId: string }) {
   // Fetch only user-specific devices if regular user
@@ -48,10 +49,11 @@ function AppContent() {
 
   // 1. If not authenticated, force redirect to /login
   if (!currentUserId || !role) {
-    if (isLoginPage) {
+    if (isLoginPage || location.pathname === "/reset-password") {
       return (
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       );

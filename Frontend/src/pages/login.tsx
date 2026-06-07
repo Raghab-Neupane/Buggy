@@ -78,12 +78,13 @@ export const Login: React.FC = () => {
                     switchView("login");
                 }, 1500);
             } else if (view === "forgot") {
-                const response = await fetch("http://localhost:8000/send-email", {
+                const response = await fetch("http://localhost:8000/auth/forgot-password", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
                     credentials: "include",
+                    body: JSON.stringify({ email }),
                 });
 
                 if (!response.ok) {
