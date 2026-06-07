@@ -28,6 +28,7 @@ export function useLogs(deviceId: string | undefined) {
   const [offset, setOffset] = useState<number>(0);
   const [hasMore, setHasMore] = useState<boolean>(true);
 
+  const [isConnected, setIsConnected] = useState<boolean>(true);
   const streamRef = useRef<WebSocketStream | null>(null);
   const logsBufferRef = useRef<LogEvent[]>([]);
   // Use a ref for isPaused so the WebSocket callback always reads the latest value
@@ -39,12 +40,10 @@ export function useLogs(deviceId: string | undefined) {
   // Set to track seen log IDs for deduplication
   const seenIdsRef = useRef<Set<string>>(new Set());
 
-  // Toggle log level filters
+  // Toggle log level filters (exclusive selection)
   const toggleLevel = (level: string) => {
     setSelectedLevels((prev) =>
-      prev.includes(level)
-        ? prev.filter((l) => l !== level)
-        : [...prev, level]
+      prev.includes(level) && prev.length === 1 ? [] : [level]
     );
   };
 
@@ -119,6 +118,10 @@ export function useLogs(deviceId: string | undefined) {
     streamRef.current = stream;
     stream.connect();
 
+    const unsubscribeStatus = stream.subscribeStatus((connected) => {
+      setIsConnected(connected);
+    });
+
     // Subscribe to incoming stream events
     const unsubscribe = stream.subscribe((newLog) => {
       // Deduplicate: skip if we've already seen this log ID
@@ -131,11 +134,11 @@ export function useLogs(deviceId: string | undefined) {
       }
 
       // Add to buffer (capped to recent 1000 entries to avoid memory leak)
-      logsBufferRef.current = [...logsBufferRef.current, newLog]
+      logsBufferRef.current = [newLog, ...logsBufferRef.current]
         .sort(safeCompare)
         .slice(0, 1000);
 
-      // Append to visible logs if not paused (use ref to avoid stale closure)
+      // Prepend to visible logs if not paused (use ref to avoid stale closure)
       if (!isPausedRef.current) {
         setLogs((prev) => {
           // Double-check dedup within current state
@@ -153,6 +156,7 @@ export function useLogs(deviceId: string | undefined) {
     // Cleanup on unmount or when deviceId changes
     return () => {
       unsubscribe();
+      unsubscribeStatus();
       stream.disconnect();
       streamRef.current = null;
     };
@@ -160,19 +164,26 @@ export function useLogs(deviceId: string | undefined) {
 
   // Filter and search logs memoized
   const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
+    const filtered = logs.filter((log) => {
+      if (!log) return false;
+      const logMsg = log.message || "";
+      const logLvl = log.level || "";
+      const logUrl = log.url || "";
+
       const matchesSearch = searchQuery
-        ? log.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          log.level.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (log.url && log.url.toLowerCase().includes(searchQuery.toLowerCase()))
+        ? logMsg.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          logLvl.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          logUrl.toLowerCase().includes(searchQuery.toLowerCase())
         : true;
 
       const matchesLevel = selectedLevels.length > 0
-        ? selectedLevels.includes(log.level.toLowerCase())
+        ? selectedLevels.includes(logLvl.toLowerCase())
         : true;
 
       return matchesSearch && matchesLevel;
     });
+
+    return [...filtered].sort(safeCompare);
   }, [logs, searchQuery, selectedLevels]);
 
   const triggerDemoLog = (level: "info" | "warn" | "error" | "debug", msg?: string) => {
@@ -195,6 +206,7 @@ export function useLogs(deviceId: string | undefined) {
     toggleLevel,
     clearLogs,
     triggerDemoLog,
+    isConnected,
     // Pagination attributes
     limit,
     setLimit,

@@ -28,6 +28,7 @@ export const DeviceDetails: React.FC = () => {
     toggleLevel,
     clearLogs,
     triggerDemoLog,
+    isConnected,
     // Pagination variables
     offset,
     hasMore,
@@ -45,19 +46,24 @@ export const DeviceDetails: React.FC = () => {
     loadDev();
   }, [deviceId]);
 
+  const displayDevice = device ? {
+    ...device,
+    online: device.online && isConnected
+  } : null;
+
   // Session duration timer counter
   useEffect(() => {
     if (loading || !session) return;
     setDurationCounter(session.duration);
 
     const interval = setInterval(() => {
-      if (device?.online && !isPaused) {
+      if (displayDevice?.online && !isPaused) {
         setDurationCounter((prev) => prev + 1);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [loading, session, device?.online, isPaused]);
+  }, [loading, session, displayDevice?.online, isPaused]);
 
   // Formatting seconds into HH:MM:SS
   const formatDuration = (secs: number) => {
@@ -117,7 +123,7 @@ export const DeviceDetails: React.FC = () => {
         <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold">
           <Link to="/dashboard" className="hover:text-slate-855 transition-colors">Dashboard</Link>
           <ChevronRight className="w-3.5 h-3.5" />
-          <span className="text-slate-855 truncate max-w-[150px]">{device.name}</span>
+          <span className="text-slate-855 truncate max-w-[150px]">{displayDevice?.name}</span>
         </div>
       </div>
 
@@ -125,7 +131,7 @@ export const DeviceDetails: React.FC = () => {
       <div className="flex-1 min-h-0 overflow-y-auto mac-scrollbar pr-1 space-y-6">
         
         {/* Device metadata report cards */}
-        <DeviceMetadata device={device} session={session} />
+        <DeviceMetadata device={displayDevice} session={session} />
 
         {/* Live Stream Panel Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
@@ -139,7 +145,7 @@ export const DeviceDetails: React.FC = () => {
               </h3>
               
               <div className="flex items-center gap-2.5">
-                {device.online && !isPaused && (
+                {displayDevice?.online && !isPaused && (
                   <span className="flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-55 border border-emerald-250 px-2 py-0.5 rounded">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     STREAMING LIVE
@@ -231,8 +237,8 @@ export const DeviceDetails: React.FC = () => {
                     <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
                     <span className="text-[8px] uppercase font-extrabold tracking-wider text-slate-400">Errors</span>
                   </div>
-                  <p className={`text-lg font-bold mt-1 font-mono ${device.errorCount > 0 ? "text-rose-650 font-black" : "text-slate-500"}`}>
-                    {device.errorCount}
+                  <p className={`text-lg font-bold mt-1 font-mono ${displayDevice?.errorCount && displayDevice.errorCount > 0 ? "text-rose-650 font-black" : "text-slate-500"}`}>
+                    {displayDevice?.errorCount || 0}
                   </p>
                 </div>
               </div>

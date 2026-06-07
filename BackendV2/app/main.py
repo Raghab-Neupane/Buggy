@@ -37,16 +37,37 @@ class ConnectionManager:
 
     async def connect(self, device_id: str, websocket: WebSocket):
         await websocket.accept()
-        if device_id not in self.active_connections:
+        is_first = device_id not in self.active_connections
+        if is_first:
             self.active_connections[device_id] = []
         self.active_connections[device_id].append(websocket)
+        if is_first:
+            await self.broadcast_status_to_dashboards(device_id, True)
 
-    def disconnect(self, device_id: str, websocket: WebSocket):
+    async def disconnect(self, device_id: str, websocket: WebSocket):
         if device_id in self.active_connections:
             if websocket in self.active_connections[device_id]:
                 self.active_connections[device_id].remove(websocket)
             if not self.active_connections[device_id]:
                 del self.active_connections[device_id]
+                await self.broadcast_status_to_dashboards(device_id, False)
+
+    async def broadcast_status_to_dashboards(self, device_id: str, online: bool):
+        for connection in self.dashboard_connections:
+            ws = connection["ws"]
+            u_id = connection["userId"]
+            if u_id and u_id != "admin" and device_id != u_id:
+                continue
+            try:
+                await ws.send_json({
+                    "type": "status_change",
+                    "payload": {
+                        "deviceId": device_id,
+                        "online": online
+                    }
+                })
+            except Exception:
+                pass
 
     async def connect_dashboard(self, websocket: WebSocket, user_id: Optional[str] = None):
         self.dashboard_connections.append({"ws": websocket, "userId": user_id})
@@ -168,7 +189,7 @@ def logout(response: Response):
     response.delete_cookie("access_token")
     return {"status": "success"}
 
-@app.post("/userkey")
+@app.post("/userid")
 def get_userkey(item: UserId, db: Session = Depends(get_db)):
     # Simply verify if this key is assigned to any user
     user = db.query(UserDB).filter(UserDB.user_id == item.key).first()
@@ -184,7 +205,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
             # Keep connection alive and receive any client message (like heartbeat)
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(device_id, websocket)
+        await manager.disconnect(device_id, websocket)
 
 @app.post("/logs")
 async def log_event(item: LogEvent, db: Session = Depends(get_db)):
@@ -389,8 +410,7 @@ def get_devices(db: Session = Depends(get_db)):
                 "name": l.get("deviceName") or f"{l.get('os', 'Unknown')} Device",
                 "browser": l.get("browser") or "Unknown",
                 "os": l.get("os") or "Unknown",
-                "online": True,
-                "_online_set": False,
+                "online": d_id in manager.active_connections,
                 "logCount": 0,
                 "errorCount": 0,
                 "lastSeen": l.get("timestamp"),
@@ -398,16 +418,10 @@ def get_devices(db: Session = Depends(get_db)):
                 "longitude": l.get("longitude"),
                 "address": l.get("location") or "Unknown Location"
             }
-        if not devices_map[d_id]["_online_set"] and l.get("isOnline") is not None:
-            devices_map[d_id]["online"] = l.get("isOnline")
-            devices_map[d_id]["_online_set"] = True
         devices_map[d_id]["logCount"] += 1
         if (l.get("level") or "").lower() == "error":
             devices_map[d_id]["errorCount"] += 1
             
-    # Clean up temporary flags
-    for d in devices_map.values():
-        d.pop("_online_set", None)
     return list(devices_map.values())
 
 @app.get("/devices/{device_id}")
@@ -433,7 +447,7 @@ def get_device(device_id: str, db: Session = Depends(get_db)):
         "longitude": last_log.get("longitude"),
         "session_started_at": last_log.get("sessionStartedAt") or last_log.get("timestamp"),
         "location": last_log.get("location"),
-        "online": last_log.get("isOnline") if last_log.get("isOnline") is not None else True
+        "online": device_id in manager.active_connections
     }
 
 @app.get("/devices/{device_id}/logs")
@@ -499,22 +513,16 @@ def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)
                 "name": l.get("deviceName") or f"{l.get('os', 'Unknown')} Device",
                 "browser": l.get("browser", "Unknown"),
                 "os": l.get("os", "Unknown"),
-                "online": True,
-                "_online_set": False,
+                "online": d_id in manager.active_connections,
                 "logCount": 0,
                 "errorCount": 0,
                 "lastSeen": l.get("timestamp")
             }
-        if not devices_map[d_id]["_online_set"] and l.get("isOnline") is not None:
-            devices_map[d_id]["online"] = l.get("isOnline")
-            devices_map[d_id]["_online_set"] = True
         devices_map[d_id]["logCount"] += 1
         if (l.get("level") or "").lower() == "error":
             devices_map[d_id]["errorCount"] += 1
 
     devices_list = list(devices_map.values())
-    for d in devices_list:
-        d.pop("_online_set", None)
 
     # Calculate statistics
     total_devices = len(devices_list)
@@ -644,21 +652,9 @@ conf = ConnectionConfig(
     MAIL_USERNAME = "",  # Mailpit allows anonymous SMTP in dev
     MAIL_PASSWORD = "",
     MAIL_FROM = "test@example.com",
-    MAIL_PORT = 1025,
+    MAIL_PORT = 1025,#smtp server port
     MAIL_SERVER = "localhost",
     MAIL_STARTTLS = False,
     MAIL_SSL_TLS = False,
     USE_CREDENTIALS = False,
 )
-
-@app.post("/send-email")
-async def send_email():
-    message = MessageSchema(
-        subject="Test Email",
-        recipients=["recipient@example.com"],
-        body="Hello from FastAPI + Mailpit",
-        subtype=MessageType.plain
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
-    return {"status": "Email captured by Mailpit"}

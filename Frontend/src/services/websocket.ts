@@ -23,8 +23,23 @@ export class WebSocketStream {
   private mockInterval: any = null;
   private isSimulationActive = false;
 
+  private statusListeners: Set<(connected: boolean) => void> = new Set();
+
   constructor(deviceId: string) {
     this.deviceId = deviceId;
+  }
+
+  public subscribeStatus(listener: (connected: boolean) => void): () => void {
+    this.statusListeners.add(listener);
+    // Trigger immediately with current state
+    listener(this.socket !== null && this.socket.readyState === WebSocket.OPEN);
+    return () => {
+      this.statusListeners.delete(listener);
+    };
+  }
+
+  private emitStatus(connected: boolean): void {
+    this.statusListeners.forEach((listener) => listener(connected));
   }
 
   public connect(): void {
@@ -33,6 +48,10 @@ export class WebSocketStream {
 
     try {
       this.socket = new WebSocket(wsUrl);
+
+      this.socket.onopen = () => {
+        this.emitStatus(true);
+      };
 
       this.socket.onmessage = (event) => {
         try {
@@ -70,13 +89,16 @@ export class WebSocketStream {
 
       this.socket.onerror = () => {
         console.warn("WebSocket stream error.");
+        this.emitStatus(false);
       };
 
       this.socket.onclose = () => {
         console.warn("WebSocket stream closed.");
+        this.emitStatus(false);
       };
     } catch (e) {
       console.warn("WebSocket connection exception.", e);
+      this.emitStatus(false);
     }
   }
 
@@ -86,7 +108,9 @@ export class WebSocketStream {
       this.socket.close();
       this.socket = null;
     }
+    this.emitStatus(false);
     this.listeners.clear();
+    this.statusListeners.clear();
   }
 
   public subscribe(listener: LogListener): () => void {

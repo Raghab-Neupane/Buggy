@@ -19,6 +19,14 @@ export function useDevices(userId?: string) {
     devicesRef.current = devices;
   }, [devices]);
 
+  useEffect(() => {
+    setStats((prevStats) => ({
+      ...prevStats,
+      totalDevices: devices.length,
+      onlineDevices: devices.filter((d) => d.online).length,
+    }));
+  }, [devices]);
+
   const loadDevices = async (isInitial = false) => {
     if (isInitial) setLoading(true);
     try {
@@ -35,6 +43,7 @@ export function useDevices(userId?: string) {
   };
 
   useEffect(() => {
+    let isMounted = true;
     loadDevices(true);
 
     const wsHost = window.location.hostname === "127.0.0.1" ? "127.0.0.1:8000" : "localhost:8000";
@@ -45,6 +54,7 @@ export function useDevices(userId?: string) {
     const socket = new WebSocket(wsUrl);
 
     socket.onmessage = (event) => {
+      if (!isMounted) return;
       try {
         const data = JSON.parse(event.data);
         if (data.type === "log_event") {
@@ -82,13 +92,24 @@ export function useDevices(userId?: string) {
           });
 
           setStats((prevStats) => {
-            const alreadyExists = devicesRef.current.some(d => d.id === logDeviceId);
             return {
-              totalDevices: alreadyExists ? prevStats.totalDevices : prevStats.totalDevices + 1,
-              onlineDevices: prevStats.onlineDevices, // Simplification
+              ...prevStats,
               totalLogs: prevStats.totalLogs + 1,
               errorsToday: newLog.level.toLowerCase() === "error" ? prevStats.errorsToday + 1 : prevStats.errorsToday
             };
+          });
+        } else if (data.type === "status_change") {
+          const { deviceId, online } = data.payload;
+          setDevices((prevDevices) => {
+            return prevDevices.map(d => {
+              if (d.id === deviceId) {
+                return {
+                  ...d,
+                  online: online
+                };
+              }
+              return d;
+            });
           });
         }
       } catch (err) {
@@ -98,9 +119,22 @@ export function useDevices(userId?: string) {
 
     socket.onerror = (err) => {
       console.warn("Dashboard WS error, fallback to REST logic", err);
+      if (isMounted) {
+        setDevices((prevDevices) => prevDevices.map(d => ({ ...d, online: false })));
+        setStats((prevStats) => ({ ...prevStats, onlineDevices: 0 }));
+      }
+    };
+
+    socket.onclose = () => {
+      console.warn("Dashboard WS connection closed.");
+      if (isMounted) {
+        setDevices((prevDevices) => prevDevices.map(d => ({ ...d, online: false })));
+        setStats((prevStats) => ({ ...prevStats, onlineDevices: 0 }));
+      }
     };
 
     return () => {
+      isMounted = false;
       socket.close();
     };
   }, [userId]);

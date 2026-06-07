@@ -1,26 +1,3 @@
-
-# export interface LogEvent {
-#     deviceId: string;
-#     sessionId: string;
-#     sessionStartedAt?: string;
-#     level: "debug" | "info" | "warn" | "error";
-#     message: string;
-
-#     timestamp: string;
-
-#     browser: string;
-#     browserVersion?: string;
-
-#     deviceName?: string;
-#     os?: string;
-
-#     latitude?: number;
-#     longitude?: number;
-
-#     url: string;
-# }
-
-
 # make the schemas defination for the typescript in python
 from pydantic import BaseModel
 from typing import Optional
