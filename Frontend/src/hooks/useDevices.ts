@@ -49,29 +49,31 @@ export function useDevices(userId?: string) {
         const data = JSON.parse(event.data);
         if (data.type === "log_event") {
           const newLog = data.payload;
+          // Backend sends deviceId (camelCase), normalize to match frontend's id field
+          const logDeviceId = newLog.deviceId || newLog.deviceid;
           
           setDevices((prevDevices) => {
-            const exists = prevDevices.find(d => d.id === newLog.deviceid);
+            const exists = prevDevices.find(d => d.id === logDeviceId);
             if (exists) {
               return prevDevices.map(d => {
-                if (d.id === newLog.deviceid) {
+                if (d.id === logDeviceId) {
                   return {
                     ...d,
                     logCount: d.logCount + 1,
                     errorCount: newLog.level.toLowerCase() === "error" ? d.errorCount + 1 : d.errorCount,
                     lastSeen: new Date(newLog.timestamp).toLocaleTimeString(),
-                    online: true
+                    online: newLog.isOnline !== undefined ? newLog.isOnline : d.online
                   };
                 }
                 return d;
               });
             } else {
               return [...prevDevices, {
-                id: newLog.deviceid,
+                id: logDeviceId,
                 name: newLog.deviceName || `${newLog.os || 'Unknown'} Device`,
                 browser: newLog.browser || "Unknown",
                 os: newLog.os || "Unknown",
-                online: true,
+                online: newLog.isOnline !== undefined ? newLog.isOnline : true,
                 logCount: 1,
                 errorCount: newLog.level.toLowerCase() === "error" ? 1 : 0,
                 lastSeen: new Date(newLog.timestamp).toLocaleTimeString()
@@ -80,7 +82,7 @@ export function useDevices(userId?: string) {
           });
 
           setStats((prevStats) => {
-            const alreadyExists = devicesRef.current.some(d => d.id === newLog.deviceid);
+            const alreadyExists = devicesRef.current.some(d => d.id === logDeviceId);
             return {
               totalDevices: alreadyExists ? prevStats.totalDevices : prevStats.totalDevices + 1,
               onlineDevices: prevStats.onlineDevices, // Simplification

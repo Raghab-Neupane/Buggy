@@ -301,7 +301,7 @@ export async function fetchDevice(id: string): Promise<Device | null> {
   if (!response.ok) throw new Error("Backend query failed");
   const data = await response.json();
 
-  const isOnline = (Date.now() - new Date(data.last_seen).getTime()) < 300000;
+  const isOnline = data.online !== undefined ? data.online : (Date.now() - new Date(data.last_seen).getTime()) < 300000;
   return {
     id: data.id,
     name: data.device_name || `${data.os} Device`,

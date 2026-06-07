@@ -37,13 +37,13 @@ export class WebSocketStream {
       this.socket.onmessage = (event) => {
         try {
           const logData = JSON.parse(event.data);
-          // Convert camelCase parameters
+          // Convert camelCase parameters — map deviceId to deviceid for frontend consistency
           const formattedLog: LogEvent = {
-            id: logData.id,
+            id: logData.id || `ws-${crypto.randomUUID()}`,
             level: logData.level.toLowerCase() as any,
             message: logData.message,
             timestamp: logData.timestamp,
-            deviceid: logData.deviceid,
+            deviceid: logData.deviceId || logData.deviceid || this.deviceId,
             url: logData.url,
             stackTrace: logData.stackTrace,
             location: logData.location,
@@ -58,7 +58,7 @@ export class WebSocketStream {
           this.emit(formattedLog);
         } catch {
           const textLog: LogEvent = {
-            id: `ws-${Math.random().toString(36).substr(2, 9)}`,
+            id: `ws-${crypto.randomUUID()}`,
             level: "info",
             message: event.data,
             timestamp: new Date().toISOString(),
@@ -108,7 +108,7 @@ export class WebSocketStream {
     this.mockInterval = setInterval(() => {
       const template = SIMULATION_MESSAGES[Math.floor(Math.random() * SIMULATION_MESSAGES.length)];
       const mockLog: LogEvent = {
-        id: `sim-${Math.random().toString(36).substr(2, 9)}`,
+        id: `sim-${crypto.randomUUID()}`,
         level: template.level as any,
         message: template.message,
         timestamp: new Date().toISOString(),
@@ -129,7 +129,7 @@ export class WebSocketStream {
   public triggerManualMockLog(level: "info" | "warn" | "error" | "debug", customMessage?: string): void {
     const template = SIMULATION_MESSAGES[Math.floor(Math.random() * SIMULATION_MESSAGES.length)];
     const mockLog: LogEvent = {
-      id: `manual-sim-${Math.random().toString(36).substr(2, 9)}`,
+      id: `manual-sim-${crypto.randomUUID()}`,
       level: level,
       message: customMessage || `[Manual Demo] ${template.message}`,
       timestamp: new Date().toISOString(),

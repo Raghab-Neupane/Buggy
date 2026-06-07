@@ -44,3 +44,4 @@ class LogEvent(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     url: Optional[str] = None
+    isOnline: Optional[bool] = None

@@ -26,6 +26,7 @@ from app.service.auth import (
     authenticated_user
 )
 from app.service.location import reverse_geocode
+from app.service.log_manager import LogManager
 
 class ConnectionManager:
     def __init__(self):
@@ -74,6 +75,7 @@ class ConnectionManager:
                 pass
 
 manager = ConnectionManager()
+log_manager = LogManager(max_buffer_size=1000)
 
 app = FastAPI()
 
@@ -201,8 +203,12 @@ async def log_event(item: LogEvent, db: Session = Depends(get_db)):
         "latitude": item.latitude,
         "longitude": item.longitude,
         "url": item.url,
-        "location": address
+        "location": address,
+        "isOnline": item.isOnline
     }
+
+    # Enrich with UUID and normalised timestamp via LogManager
+    log_entry = await log_manager.process_log(log_entry)
 
     # Find user to associate logs with (use deviceId as user_id if possible)
     user = db.query(UserDB).filter(UserDB.user_id == item.deviceId).first()
@@ -274,8 +280,12 @@ async def log_event_for_user(user_id: str, item: LogEvent, db: Session = Depends
         "latitude": item.latitude,
         "longitude": item.longitude,
         "url": item.url,
-        "location": address
+        "location": address,
+        "isOnline": item.isOnline
     }
+
+    # Enrich with UUID and normalised timestamp via LogManager
+    log_entry = await log_manager.process_log(log_entry)
 
     # Store in user's JSONB logs column
     current_logs = list(user.logs or [])
@@ -306,19 +316,21 @@ def get_init_snippet(user_id: str, db: Session = Depends(get_db)):
     }
     return snippet
 
-# ---------- Helper: collect all log dicts from UserDB ----------
 def _collect_logs(db: Session, user_id: Optional[str] = None) -> list:
     """Return a flat list of log dicts, optionally filtered by user_id."""
     if user_id and user_id != "admin":
         user = db.query(UserDB).filter(UserDB.user_id == user_id).first()
         if user and user.logs:
-            return list(user.logs)
+            res = list(user.logs)
+            res.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+            return res
         return []
     users = db.query(UserDB).all()
     all_logs = []
     for u in users:
         if u.logs:
             all_logs.extend(u.logs)
+    all_logs.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
     return all_logs
 
 @app.get("/logs")
@@ -369,6 +381,7 @@ def get_devices(db: Session = Depends(get_db)):
                 "browser": l.get("browser") or "Unknown",
                 "os": l.get("os") or "Unknown",
                 "online": True,
+                "_online_set": False,
                 "logCount": 0,
                 "errorCount": 0,
                 "lastSeen": l.get("timestamp"),
@@ -376,9 +389,16 @@ def get_devices(db: Session = Depends(get_db)):
                 "longitude": l.get("longitude"),
                 "address": l.get("location") or "Unknown Location"
             }
+        if not devices_map[d_id]["_online_set"] and l.get("isOnline") is not None:
+            devices_map[d_id]["online"] = l.get("isOnline")
+            devices_map[d_id]["_online_set"] = True
         devices_map[d_id]["logCount"] += 1
         if (l.get("level") or "").lower() == "error":
             devices_map[d_id]["errorCount"] += 1
+            
+    # Clean up temporary flags
+    for d in devices_map.values():
+        d.pop("_online_set", None)
     return list(devices_map.values())
 
 @app.get("/devices/{device_id}")
@@ -403,7 +423,8 @@ def get_device(device_id: str, db: Session = Depends(get_db)):
         "latitude": last_log.get("latitude"),
         "longitude": last_log.get("longitude"),
         "session_started_at": last_log.get("sessionStartedAt") or last_log.get("timestamp"),
-        "location": last_log.get("location")
+        "location": last_log.get("location"),
+        "online": last_log.get("isOnline") if last_log.get("isOnline") is not None else True
     }
 
 @app.get("/devices/{device_id}/logs")
@@ -453,7 +474,8 @@ def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)
             "latitude": l.get("latitude"),
             "longitude": l.get("longitude"),
             "url": l.get("url"),
-            "location": l.get("location") or "Unknown Location"
+            "location": l.get("location") or "Unknown Location",
+            "isOnline": l.get("isOnline")
         })
 
     # Compute devices from logs
@@ -468,16 +490,22 @@ def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)
                 "name": l.get("deviceName") or f"{l.get('os', 'Unknown')} Device",
                 "browser": l.get("browser", "Unknown"),
                 "os": l.get("os", "Unknown"),
-                "online": True,  # Simplification
+                "online": True,
+                "_online_set": False,
                 "logCount": 0,
                 "errorCount": 0,
                 "lastSeen": l.get("timestamp")
             }
+        if not devices_map[d_id]["_online_set"] and l.get("isOnline") is not None:
+            devices_map[d_id]["online"] = l.get("isOnline")
+            devices_map[d_id]["_online_set"] = True
         devices_map[d_id]["logCount"] += 1
         if (l.get("level") or "").lower() == "error":
             devices_map[d_id]["errorCount"] += 1
 
     devices_list = list(devices_map.values())
+    for d in devices_list:
+        d.pop("_online_set", None)
 
     # Calculate statistics
     total_devices = len(devices_list)
