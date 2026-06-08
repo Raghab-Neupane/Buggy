@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Lock, CheckCircle, XCircle, ArrowLeft, ShieldCheck, KeyRound } from "lucide-react";
+import ApiClient from "../services/ApiClient";
 
 export const ResetPassword: React.FC = () => {
     const [searchParams] = useSearchParams();
@@ -33,18 +34,7 @@ export const ResetPassword: React.FC = () => {
 
         setSubmitting(true);
         try {
-            const response = await fetch("http://localhost:8000/auth/reset-password", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ token, new_password: newPassword }),
-            });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.detail || "Failed to reset password.");
-            }
+            await ApiClient.post<any>("/auth/reset-password", { token, new_password: newPassword });
 
             setResult({ type: "success", text: "Password has been reset successfully!" });
         } catch (err) {

@@ -18,7 +18,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
   const initSnippet = `import { init } from 'npmpackagebuggy'
 
 init({
-  endpoint: "http://localhost:8000/logs/${userId}"
+  endpoint: "https://buggybackend.onrender.com/logs/${userId}"
 });`;
 
   const handleCopy = () => {
@@ -178,7 +178,7 @@ init({
           {/* Link highlight */}
           <div className="bg-white/80 backdrop-blur-sm rounded-lg px-2.5 py-1.5 border-2 border-slate-900 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)]">
             <span className="text-[10px] font-mono font-black text-slate-900 break-all select-all">
-              http://localhost:8000/logs/{userId}
+              https://buggybackend.onrender.com/logs/{userId}
             </span>
           </div>
 

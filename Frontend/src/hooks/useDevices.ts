@@ -46,10 +46,9 @@ export function useDevices(userId?: string) {
     let isMounted = true;
     loadDevices(true);
 
-    const wsHost = window.location.hostname === "127.0.0.1" ? "127.0.0.1:8000" : "localhost:8000";
     const wsUrl = userId 
-      ? `ws://${wsHost}/ws/dashboard?userId=${userId}` 
-      : `ws://${wsHost}/ws/dashboard`;
+      ? `wss://buggybackend.onrender.com/ws/dashboard?userId=${userId}` 
+      : `wss://buggybackend.onrender.com/ws/dashboard`;
       
     const socket = new WebSocket(wsUrl);
 

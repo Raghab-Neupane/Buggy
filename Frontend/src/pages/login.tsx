@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { InitSnippetModal } from "../components/InitSnippetModal";
 import { AnimatePresence, motion } from "framer-motion";
 import { Mail, Lock, UserPlus, ArrowLeft, LogIn } from "lucide-react";
+import ApiClient from "../services/ApiClient";
 
 type ViewState = "login" | "signup" | "forgot";
 
@@ -29,21 +30,7 @@ export const Login: React.FC = () => {
 
         try {
             if (view === "login") {
-                const response = await fetch("http://localhost:8000/login", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    credentials: "include",
-                    body: JSON.stringify({ email, password }),
-                });
-
-                if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.detail || "Invalid credentials or login failed.");
-                }
-
-                const data = await response.json();
+                const data = await ApiClient.post<any>("/login", { email, password });
                 
                 // Store non-sensitive metadata in localStorage for routing/UX
                 localStorage.setItem("role", data.role);
@@ -51,47 +38,27 @@ export const Login: React.FC = () => {
                 localStorage.setItem("email", email);
 
                 // Fetch init snippet for the user
-                const snippetRes = await fetch(`http://localhost:8000/init/${data.user_id}`);
-                const snippetData = await snippetRes.json();
+                const snippetData = await ApiClient.get<any>(`/init/${data.user_id}`);
                 setInitSnippet(snippetData);
                 setShowInitModal(true);
                 setRedirectUrl(data.role === "admin" ? "/dashboard" : `/dashboard/${data.user_id}`);
 
                 setMessage({ type: "success", text: `Logged in successfully!` });
             } else if (view === "signup") {
-                const response = await fetch("http://localhost:8000/signup", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    credentials: "include",
-                    body: JSON.stringify({ email, password, role }),
-                });
-
-                if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.detail || "Signup failed.");
-                }
+                await ApiClient.post<any>("/signup", { email, password, role });
 
                 setMessage({ type: "success", text: "Account created successfully! Switching to Login..." });
                 setTimeout(() => {
                     switchView("login");
                 }, 1500);
             } else if (view === "forgot") {
-                const response = await fetch("http://localhost:8000/auth/forgot-password", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    credentials: "include",
-                    body: JSON.stringify({ email }),
-                });
-
-                if (!response.ok) {
-                    throw new Error("Failed to send reset email.");
+                const res = await ApiClient.post<any>("/auth/forgot-password", { email });
+                
+                if (res && res.reset_link) {
+                    console.log("Password reset link:", res.reset_link);
                 }
 
-                setMessage({ type: "success", text: "Password reset link sent to your email!" });
+                setMessage({ type: "success", text: "Password reset link generated! Check console or response if in dev mode." });
             }
         } catch (err) {
             setMessage({ type: "error", text: err instanceof Error ? err.message : "An error occurred." });

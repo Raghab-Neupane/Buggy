@@ -3,8 +3,6 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict
 from fastapi.middleware.cors import CORSMiddleware
 from app.schemas.log_event import LogEvent, UserId
-# pyrefly: ignore [missing-import]
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 import random
 import string
 import datetime
@@ -102,13 +100,24 @@ log_manager = LogManager(max_buffer_size=1000)
 
 app = FastAPI()
 
+SDK_app = FastAPI()
+
+SDK_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/sdk", SDK_app)
+
 # Configure CORS - MUST allow credentials to accept cookies
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5175",
-        "http://localhost:3000"
+        "https://buggyfrontend.vercel.app",
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -205,7 +214,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
     except WebSocketDisconnect:
         await manager.disconnect(device_id, websocket)
 
-@app.post("/logs")
+@SDK_app.post("/logs")
 async def log_event(item: LogEvent, db: Session = Depends(get_db)):
     # Compute geocoded address before storing
     address = "Unknown Location"
@@ -271,12 +280,12 @@ async def dashboard_websocket(websocket: WebSocket, userId: Optional[str] = None
     except WebSocketDisconnect:
         manager.disconnect_dashboard(websocket)
 
-@app.post("/devices/{device_id}/logs")
+@SDK_app.post("/devices/{device_id}/logs")
 async def log_event_for_device(device_id: str, item: LogEvent, db: Session = Depends(get_db)):
     item.deviceId = device_id
     return await log_event(item, db)
 
-@app.post("/logs/{user_id}")
+@SDK_app.post("/logs/{user_id}")
 async def log_event_for_user(user_id: str, item: LogEvent, db: Session = Depends(get_db)):
     """Accept logs posted to a user-specific endpoint (from npmpackagebuggy init)."""
     # Look up the user by their assigned user_id
@@ -339,7 +348,7 @@ def get_init_snippet(user_id: str, db: Session = Depends(get_db)):
     snippet = {
         "import": "import { init } from 'npmpackagebuggy'",
         "init": {
-            "endpoint": f"http://localhost:8000/logs/{user_id}"
+            "endpoint": f"https://buggybackend.onrender.com/sdk/logs/{user_id}"
         }
     }
     return snippet
@@ -585,23 +594,12 @@ async def forgot_password(item: ForgotPasswordRequest, db: Session = Depends(get
     # Build reset URL with the raw token (not the hash)
     reset_link = f"{FRONTEND_URL}/reset-password?token={raw_token}"
 
-    # Send email using existing Mailpit configuration
-    email_body = f"""\
-<p>You requested a password reset.</p>
-<p><a href="{reset_link}">Reset Password</a></p>
-<p>This link expires in 30 minutes.</p>
-<p>If you did not request this reset, you can safely ignore this email.</p>"""
-
-    message = MessageSchema(
-        subject="Reset Your Password",
-        recipients=[item.email],
-        body=email_body,
-        subtype=MessageType.html
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
-
-    return {"status": "success", "message": "If that email exists, a reset link has been sent."}
+    return {
+        "status": "success",
+        "message": "If that email exists, a reset link has been sent.",
+        "reset_link": reset_link,
+        "token": raw_token
+    }
 
 
 @app.post("/auth/reset-password")
@@ -648,14 +646,3 @@ def reset_password(item: ResetPasswordRequest, db: Session = Depends(get_db)):
 
     return {"status": "success", "message": "Password has been reset successfully."}
 
-
-conf = ConnectionConfig(
-    MAIL_USERNAME = "",  # Mailpit allows anonymous SMTP in dev
-    MAIL_PASSWORD = "",
-    MAIL_FROM = "test@example.com",
-    MAIL_PORT = 1025,#smtp server port
-    MAIL_SERVER = "localhost",
-    MAIL_STARTTLS = False,
-    MAIL_SSL_TLS = False,
-    USE_CREDENTIALS = False,
-)

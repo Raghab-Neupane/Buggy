@@ -41,10 +41,8 @@ export class WebSocketStream {
   private emitStatus(connected: boolean): void {
     this.statusListeners.forEach((listener) => listener(connected));
   }
-
   public connect(): void {
-    const wsHost = window.location.hostname === "127.0.0.1" ? "127.0.0.1:8000" : "localhost:8000";
-    const wsUrl = `ws://${wsHost}/devices/${this.deviceId}/stream`;
+    const wsUrl = `wss://buggybackend.onrender.com/devices/${this.deviceId}/stream`;
 
     try {
       this.socket = new WebSocket(wsUrl);
