@@ -87,7 +87,11 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({ device }) => {
           <div className="border-t border-slate-200 pt-3.5 flex items-center justify-between text-[10px] text-slate-500 font-bold">
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Seen: {device.lastSeen}</span>
+              {device.online && device.connectedAt ? (
+                <span>Connected: {new Date(device.connectedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+              ) : (
+                <span>Seen: {device.lastSeen ? (isNaN(new Date(device.lastSeen).getTime()) ? device.lastSeen : new Date(device.lastSeen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) : "Unknown"}</span>
+              )}
             </div>
 
             <div className="flex items-center gap-1 bg-slate-100 text-[9px] text-slate-700 font-extrabold px-2 py-1 rounded-md border border-slate-300 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)] group-hover:bg-brand-500 group-hover:text-white group-hover:border-slate-900 transition-all duration-200">

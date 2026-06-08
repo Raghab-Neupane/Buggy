@@ -36,10 +36,22 @@ export const DeviceMetadata: React.FC<DeviceMetadataProps> = ({ device, session 
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
+        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 text-xs font-bold text-slate-500 select-none">
+          {device.connectedAt && (
+            <div className="flex flex-col items-start sm:items-end">
+              <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wide">Connected Since</span>
+              <span className="text-slate-700 mt-0.5">
+                {new Date(device.connectedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+            </div>
+          )}
           <div className="flex flex-col items-start sm:items-end">
-            <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wide">Last Active Connection</span>
-            <span className="text-slate-700 mt-0.5">{device.lastSeen === "Just now" ? "Active Now" : device.lastSeen}</span>
+            <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wide">Last Seen</span>
+            <span className="text-slate-700 mt-0.5">
+              {device.lastSeen ? (
+                isNaN(new Date(device.lastSeen).getTime()) ? device.lastSeen : new Date(device.lastSeen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+              ) : "Unknown"}
+            </span>
           </div>
         </div>
       </div>

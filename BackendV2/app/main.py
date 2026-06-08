@@ -2,10 +2,12 @@ from fastapi import FastAPI, Depends, HTTPException, status, Response, Request, 
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 from app.schemas.log_event import LogEvent, UserId
 import random
 import string
-import datetime
+from datetime import datetime, timezone, timedelta
+import asyncio
 import secrets
 import hashlib
 
@@ -31,24 +33,96 @@ from app.service.log_manager import LogManager
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, List[WebSocket]] = {}
+        self.device_listeners: Dict[str, List[WebSocket]] = {}
         self.dashboard_connections: List[Dict] = []
+        self.last_heartbeat: Dict[str, datetime] = {}
+        self.connected_at: Dict[str, datetime] = {}
 
-    async def connect(self, device_id: str, websocket: WebSocket):
+    async def connect(self, device_id: str, websocket: WebSocket, is_dashboard: bool = False):
         await websocket.accept()
-        is_first = device_id not in self.active_connections
-        if is_first:
-            self.active_connections[device_id] = []
-        self.active_connections[device_id].append(websocket)
-        if is_first:
-            await self.broadcast_status_to_dashboards(device_id, True)
+        if is_dashboard:
+            if device_id not in self.device_listeners:
+                self.device_listeners[device_id] = []
+            self.device_listeners[device_id].append(websocket)
+        else:
+            previously_online = self.is_device_online(device_id)
+
+            if device_id not in self.active_connections:
+                self.active_connections[device_id] = []
+            self.active_connections[device_id].append(websocket)
+
+            # Register connection timestamps
+            now = datetime.now(timezone.utc)
+            self.last_heartbeat[device_id] = now
+            self.connected_at[device_id] = now
+
+            if not previously_online:
+                await self.broadcast_status_to_dashboards(device_id, True)
 
     async def disconnect(self, device_id: str, websocket: WebSocket):
+        # Remove from device listeners if present
+        if device_id in self.device_listeners:
+            if websocket in self.device_listeners[device_id]:
+                self.device_listeners[device_id].remove(websocket)
+            if not self.device_listeners[device_id]:
+                del self.device_listeners[device_id]
+
+        was_online = self.is_device_online(device_id)
+
+        # Remove from active connections if present
         if device_id in self.active_connections:
             if websocket in self.active_connections[device_id]:
                 self.active_connections[device_id].remove(websocket)
             if not self.active_connections[device_id]:
                 del self.active_connections[device_id]
-                await self.broadcast_status_to_dashboards(device_id, False)
+                if device_id in self.last_heartbeat:
+                    del self.last_heartbeat[device_id]
+                if device_id in self.connected_at:
+                    del self.connected_at[device_id]
+
+        if was_online and not self.is_device_online(device_id):
+            await self.broadcast_status_to_dashboards(device_id, False)
+
+    async def update_heartbeat(self, device_id: str):
+        was_online = self.is_device_online(device_id)
+        self.last_heartbeat[device_id] = datetime.now(timezone.utc)
+        if not was_online and self.is_device_online(device_id):
+            await self.broadcast_status_to_dashboards(device_id, True)
+
+    async def force_disconnect(self, device_id: str):
+        was_online = self.is_device_online(device_id)
+        if device_id in self.active_connections:
+            websockets = list(self.active_connections[device_id])
+            for ws in websockets:
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+            del self.active_connections[device_id]
+        if device_id in self.last_heartbeat:
+            del self.last_heartbeat[device_id]
+        if device_id in self.connected_at:
+            del self.connected_at[device_id]
+        if was_online:
+            await self.broadcast_status_to_dashboards(device_id, False)
+
+    def is_device_online(self, device_id: str) -> bool:
+        if device_id not in self.active_connections:
+            return False
+        if device_id not in self.last_heartbeat:
+            return False
+        now = datetime.now(timezone.utc)
+        return (now - self.last_heartbeat[device_id]).total_seconds() < 90
+
+    def get_last_seen(self, device_id: str) -> Optional[str]:
+        if device_id in self.last_heartbeat:
+            return self.last_heartbeat[device_id].isoformat().replace("+00:00", "Z")
+        return None
+
+    def get_connected_at(self, device_id: str) -> Optional[str]:
+        if device_id in self.connected_at:
+            return self.connected_at[device_id].isoformat().replace("+00:00", "Z")
+        return None
 
     async def broadcast_status_to_dashboards(self, device_id: str, online: bool):
         for connection in self.dashboard_connections:
@@ -62,7 +136,7 @@ class ConnectionManager:
                     "payload": {
                         "deviceId": device_id,
                         "online": online
-                    }
+                     }
                 })
             except Exception:
                 pass
@@ -74,12 +148,16 @@ class ConnectionManager:
         self.dashboard_connections = [c for c in self.dashboard_connections if c["ws"] != websocket]
 
     async def broadcast_to_device(self, device_id: str, message: dict):
+        targets = []
         if device_id in self.active_connections:
-            for connection in self.active_connections[device_id]:
-                try:
-                    await connection.send_json(message)
-                except Exception:
-                    pass
+            targets.extend(self.active_connections[device_id])
+        if device_id in self.device_listeners:
+            targets.extend(self.device_listeners[device_id])
+        for connection in targets:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
 
     async def broadcast_to_dashboards(self, log_data: dict):
         for connection in self.dashboard_connections:
@@ -102,27 +180,61 @@ app = FastAPI()
 
 SDK_app = FastAPI()
 
-SDK_app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app.mount("/sdk", SDK_app)
 
-# Configure CORS - MUST allow credentials to accept cookies
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://buggyfrontend.vercel.app",
-        "*"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+async def cleanup_stale_connections():
+    while True:
+        await asyncio.sleep(30)
+        now = datetime.now(timezone.utc)
+        stale_devices = []
+        for device_id, hb_time in list(manager.last_heartbeat.items()):
+            if (now - hb_time).total_seconds() > 90:
+                stale_devices.append(device_id)
+        for device_id in stale_devices:
+            print(f"Stale device detected: {device_id}. Force disconnecting.", flush=True)
+            await manager.force_disconnect(device_id)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(cleanup_stale_connections())
+
+class PathAwareCORSMiddleware:
+    def __init__(self, app: ASGIApp):
+        self.app = app
+        self.sdk_cors = CORSMiddleware(
+            app=app,
+            allow_origins=["*"],
+            allow_credentials=False,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        self.dash_cors = CORSMiddleware(
+            app=app,
+            allow_origins=[
+                "https://buggyfrontend.vercel.app",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        print("PARENT APP HANDLED REQUEST", flush=True)
+
+        path = scope.get("path", "")
+        if path.startswith("/sdk"):
+            print("SDK APP HANDLED REQUEST", flush=True)
+            await self.sdk_cors(scope, receive, send)
+        else:
+            print("DASHBOARD APP HANDLED REQUEST", flush=True)
+            await self.dash_cors(scope, receive, send)
+
+app.add_middleware(PathAwareCORSMiddleware)
+
 
 class UserSignup(BaseModel):
     email: str
@@ -204,13 +316,24 @@ def get_userkey(item: UserId, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User Key not found")
     return {"message": "Key exists", "key": item.key}
 
-@app.websocket("/devices/{device_id}/stream")
+@SDK_app.websocket("/devices/{device_id}/stream")
 async def websocket_endpoint(websocket: WebSocket, device_id: str):
-    await manager.connect(device_id, websocket)
+    import json
+    is_dashboard = websocket.query_params.get("client") == "dashboard"
+    await manager.connect(device_id, websocket, is_dashboard=is_dashboard)
     try:
         while True:
-            # Keep connection alive and receive any client message (like heartbeat)
-            await websocket.receive_text()
+            data_text = await websocket.receive_text()
+            try:
+                payload = json.loads(data_text)
+                if isinstance(payload, dict) and payload.get("type") == "heartbeat":
+                    if payload.get("deviceId") == device_id:
+                        await manager.update_heartbeat(device_id)
+                        print(f"Heartbeat received from {device_id}", flush=True)
+                    else:
+                        print(f"Mismatched heartbeat deviceId: {payload.get('deviceId')} != {device_id}", flush=True)
+            except Exception:
+                pass
     except WebSocketDisconnect:
         await manager.disconnect(device_id, websocket)
 
@@ -241,7 +364,7 @@ async def log_event(item: LogEvent, db: Session = Depends(get_db)):
         "longitude": item.longitude,
         "url": item.url,
         "location": address,
-        "isOnline": item.isOnline
+        "isOnline": manager.is_device_online(item.deviceId)
     }
 
     # Enrich with UUID and normalised timestamp via LogManager
@@ -318,7 +441,7 @@ async def log_event_for_user(user_id: str, item: LogEvent, db: Session = Depends
         "longitude": item.longitude,
         "url": item.url,
         "location": address,
-        "isOnline": item.isOnline
+        "isOnline": manager.is_device_online(item.deviceId or user_id)
     }
 
     # Enrich with UUID and normalised timestamp via LogManager
@@ -380,7 +503,6 @@ def get_stats(db: Session = Depends(get_db)):
     devices_set = set()
     online_devices_set = set()
     errors_today = 0
-    now = datetime.datetime.utcnow()
     
     for l in logs_list:
         d_id = l.get("deviceId")
@@ -388,12 +510,7 @@ def get_stats(db: Session = Depends(get_db)):
             devices_set.add(d_id)
             if (l.get("level") or "").lower() == "error":
                 errors_today += 1
-            try:
-                ts_str = (l.get("timestamp") or "").replace('Z', '')
-                ts = datetime.datetime.fromisoformat(ts_str)
-                if (now - ts).total_seconds() < 300:
-                    online_devices_set.add(d_id)
-            except Exception:
+            if manager.is_device_online(d_id):
                 online_devices_set.add(d_id)
                 
     return {
@@ -417,10 +534,11 @@ def get_devices(db: Session = Depends(get_db)):
                 "name": l.get("deviceName") or f"{l.get('os', 'Unknown')} Device",
                 "browser": l.get("browser") or "Unknown",
                 "os": l.get("os") or "Unknown",
-                "online": d_id in manager.active_connections,
+                "online": manager.is_device_online(d_id),
                 "logCount": 0,
                 "errorCount": 0,
-                "lastSeen": l.get("timestamp"),
+                "lastSeen": manager.get_last_seen(d_id) or l.get("timestamp"),
+                "connectedAt": manager.get_connected_at(d_id),
                 "url": l.get("url") or "",
                 "latitude": l.get("latitude"),
                 "longitude": l.get("longitude"),
@@ -447,7 +565,7 @@ def get_device(device_id: str, db: Session = Depends(get_db)):
         "browser": last_log.get("browser") or "Unknown",
         "os": last_log.get("os") or "Unknown",
         "browser_version": last_log.get("browserVersion") or "Unknown",
-        "last_seen": last_log.get("timestamp"),
+        "last_seen": manager.get_last_seen(device_id) or last_log.get("timestamp"),
         "session_id": last_log.get("sessionId"),
         "user_agent": "Unknown User Agent",
         "url": last_log.get("url") or "http://localhost/",
@@ -455,7 +573,8 @@ def get_device(device_id: str, db: Session = Depends(get_db)):
         "longitude": last_log.get("longitude"),
         "session_started_at": last_log.get("sessionStartedAt") or last_log.get("timestamp"),
         "location": last_log.get("location"),
-        "online": device_id in manager.active_connections
+        "online": manager.is_device_online(device_id),
+        "connected_at": manager.get_connected_at(device_id)
     }
 
 @app.get("/devices/{device_id}/logs")
@@ -506,7 +625,7 @@ def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)
             "longitude": l.get("longitude"),
             "url": l.get("url"),
             "location": l.get("location") or "Unknown Location",
-            "isOnline": l.get("isOnline")
+            "isOnline": manager.is_device_online(l.get("deviceId")) if l.get("deviceId") else l.get("isOnline")
         })
 
     # Compute devices from logs
@@ -521,10 +640,11 @@ def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)
                 "name": l.get("deviceName") or f"{l.get('os', 'Unknown')} Device",
                 "browser": l.get("browser", "Unknown"),
                 "os": l.get("os", "Unknown"),
-                "online": d_id in manager.active_connections,
+                "online": manager.is_device_online(d_id),
                 "logCount": 0,
                 "errorCount": 0,
-                "lastSeen": l.get("timestamp"),
+                "lastSeen": manager.get_last_seen(d_id) or l.get("timestamp"),
+                "connectedAt": manager.get_connected_at(d_id),
                 "url": l.get("url") or ""
             }
         devices_map[d_id]["logCount"] += 1
@@ -580,13 +700,14 @@ async def forgot_password(item: ForgotPasswordRequest, db: Session = Depends(get
     # Store only the SHA-256 hash in the database
     token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
 
-    now = datetime.datetime.utcnow()
+    now_utc = datetime.now(timezone.utc)
+    now_naive = now_utc.replace(tzinfo=None)
     reset_record = PasswordResetToken(
         user_id=user.id,
         token_hash=token_hash,
-        expires_at=now + datetime.timedelta(minutes=30),
+        expires_at=now_naive + timedelta(minutes=30),
         used=False,
-        created_at=now
+        created_at=now_naive
     )
     db.add(reset_record)
     db.commit()
@@ -618,7 +739,7 @@ def reset_password(item: ResetPasswordRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
 
     # Check expiration
-    if datetime.datetime.utcnow() > reset_record.expires_at:
+    if datetime.now(timezone.utc).replace(tzinfo=None) > reset_record.expires_at:
         reset_record.used = True
         db.commit()
         raise HTTPException(status_code=400, detail="Reset token has expired.")

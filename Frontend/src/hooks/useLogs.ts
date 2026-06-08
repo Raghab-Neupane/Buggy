@@ -108,6 +108,16 @@ export function useLogs(deviceId: string | undefined) {
     loadHistoricalLogs();
   }, [deviceId, limit, offset]);
 
+  // Trigger re-fetch of logs when connection restores
+  const prevConnectedRef = useRef<boolean>(true);
+  useEffect(() => {
+    if (isConnected && !prevConnectedRef.current) {
+      console.log("WS stream connection restored, re-fetching logs...");
+      loadHistoricalLogs();
+    }
+    prevConnectedRef.current = isConnected;
+  }, [isConnected]);
+
   // Connect to WebSocket stream (only active when on the first page / offset 0)
   // Establish a single WebSocket connection for the active device.
   // The connection should persist across pause/resume toggles and only reset when the deviceId changes.

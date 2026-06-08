@@ -9,4 +9,5 @@ export interface Device {
   lastSeen: string; // ISO String or human readable (e.g., "2 mins ago")
   sessionCount?: number;
   url?: string;
+  connectedAt?: string | null;
 }

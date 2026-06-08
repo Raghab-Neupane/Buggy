@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, ShieldAlert, Cpu, Settings, Terminal, Activity, HelpCircle, LogOut, Copy, Check, Zap } from "lucide-react";
+import { LayoutDashboard, ShieldAlert, Cpu, Settings, Activity, HelpCircle, LogOut, Copy, Check, Zap } from "lucide-react";
 import type { Device } from "../types/device";
 import { logout } from "../services/api";
 
@@ -12,7 +12,6 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const onlineDevices = devices.filter(d => d.online);
   const [copied, setCopied] = useState(false);
   const userId = localStorage.getItem("userId") || "your_id";
   const initSnippet = `import { init } from 'npmpackagebuggy'
@@ -26,12 +25,6 @@ init({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/errors", label: "Errors", icon: ShieldAlert, count: devices.reduce((sum, d) => sum + d.errorCount, 0) },
-    { path: "/console", label: "System Console", icon: Terminal },
-  ];
 
   return (
     <aside className="w-68 h-screen sticky top-0 flex flex-col bg-white border-r border-slate-200 text-slate-800 p-4 select-none z-10">
@@ -69,48 +62,76 @@ init({
       {/* Primary Navigation */}
       <nav className="space-y-1.5 mb-6">
         <p className="px-2 text-[9px] uppercase font-black text-slate-400 tracking-wider mb-2">Overview</p>
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path || (item.path === "/dashboard" && location.pathname.startsWith("/device/"));
-          const Icon = item.icon;
+        
+        {/* Dashboard Link */}
+        <Link to="/dashboard">
+          <div
+            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold relative transition-all duration-150 ${
+              location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/")
+                ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black"
+                : "text-slate-600 hover:text-black hover:bg-slate-100 border border-transparent"
+            }`}
+          >
+            {(location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/")) && (
+              <motion.div
+                layoutId="active-nav-indicator"
+                className="absolute left-0 w-1 h-4 bg-brand-500 rounded-r-md"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+            <div className="flex items-center gap-2.5">
+              <LayoutDashboard className={`w-4 h-4 ${location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/") ? "text-brand-600 font-black" : "text-slate-400"}`} />
+              <span>Dashboard</span>
+            </div>
+          </div>
+        </Link>
 
-          return (
-            <Link key={item.path} to={item.path === "/dashboard" ? "/dashboard" : "#"}>
-              <div
-                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold relative transition-all duration-150 ${isActive
-                  ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black"
-                  : "text-slate-600 hover:text-black hover:bg-slate-100 border border-transparent"
-                  }`}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="active-nav-indicator"
-                    className="absolute left-0 w-1 h-4 bg-brand-500 rounded-r-md"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-                <div className="flex items-center gap-2.5">
-                  <Icon className={`w-4 h-4 ${isActive ? "text-brand-600 font-black" : "text-slate-400"}`} />
-                  <span>{item.label}</span>
-                </div>
-                {item.count !== undefined && item.count > 0 && (
-                  <span className="bg-rose-100 text-rose-700 border border-rose-300 text-[9px] font-black px-2 py-0.5 rounded-full">
-                    {item.count}
-                  </span>
-                )}
+        {/* Errors Subsection with only erroring devices */}
+        <div className="pt-3">
+          <p className="px-2 text-[9px] uppercase font-black text-slate-400 tracking-wider mb-2">Errors</p>
+          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 mac-scrollbar">
+            {devices.filter((d) => d.errorCount > 0).map((device) => {
+              const isSelected = location.pathname === `/device/${device.id}`;
+              return (
+                <Link key={device.id} to={`/device/${device.id}`}>
+                  <div
+                    className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-bold relative transition-all duration-150 ${
+                      isSelected
+                        ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)] font-black"
+                        : "text-slate-600 hover:text-black hover:bg-slate-50 border border-transparent"
+                    }`}
+                  >
+                    {isSelected && (
+                      <motion.div
+                        layoutId="active-nav-indicator"
+                        className="absolute left-0 w-1 h-4 bg-brand-500 rounded-r-md"
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    <div className="flex items-center gap-2 truncate">
+                      <ShieldAlert className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-rose-600" : "text-slate-400"}`} />
+                      <span className="truncate font-semibold">{device.name}</span>
+                    </div>
+                    <span className="text-[8.5px] bg-rose-100 text-rose-700 border border-rose-350 rounded font-black px-1.5 flex-shrink-0">
+                      {device.errorCount}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+            {devices.filter((d) => d.errorCount > 0).length === 0 && (
+              <div className="text-[10px] text-slate-400 text-center py-2 italic font-semibold">
+                No active errors
               </div>
-            </Link>
-          );
-        })}
+            )}
+          </div>
+        </div>
       </nav>
 
       {/* Active Streams Panel */}
       <div className="flex-1 min-h-0 flex flex-col mb-5">
         <div className="flex items-center justify-between px-2 mb-2">
           <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Active Channels</span>
-          <span className="flex items-center gap-1 text-[9px] text-emerald-700 font-black bg-emerald-50 border border-emerald-350 px-2 py-0.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            {onlineDevices.length}
-          </span>
         </div>
 
         <div className="flex-1 overflow-y-auto mac-scrollbar pr-1 space-y-1.5">
@@ -129,20 +150,6 @@ init({
                       {device.os?.toLowerCase() === "macos" ? "💻" : device.os?.toLowerCase() === "ios" ? "📱" : device.os?.toLowerCase() === "android" ? "🤖" : device.os?.toLowerCase() === "windows" ? "🪟" : "🌐"}
                     </span>
                     <span className="truncate font-semibold">{device.name}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {device.errorCount > 0 && (
-                      <span className="text-[8px] bg-red-100 text-red-700 border border-red-300 rounded font-black px-1 scale-90">
-                        {device.errorCount}
-                      </span>
-                    )}
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${device.online
-                        ? "bg-emerald-500 glow-dot-active"
-                        : "bg-slate-300"
-                        }`}
-                    />
                   </div>
                 </div>
               </Link>
@@ -178,7 +185,7 @@ init({
           {/* Link highlight */}
           <div className="bg-white/80 backdrop-blur-sm rounded-lg px-2.5 py-1.5 border-2 border-slate-900 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)]">
             <span className="text-[10px] font-mono font-black text-slate-900 break-all select-all">
-              https://buggybackend.onrender.com/logs/{userId}
+              https://buggybackend.onrender.com/sdk/logs/{userId}
             </span>
           </div>
 

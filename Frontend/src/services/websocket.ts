@@ -1,4 +1,5 @@
 import type { LogEvent } from "../types/log";
+import ApiClient from "./ApiClient";
 
 export type LogListener = (log: LogEvent) => void;
 
@@ -22,6 +23,7 @@ export class WebSocketStream {
   private deviceId: string;
   private mockInterval: any = null;
   private isSimulationActive = false;
+  private reconnectTimeout: any = null;
 
   private statusListeners: Set<(connected: boolean) => void> = new Set();
 
@@ -41,8 +43,23 @@ export class WebSocketStream {
   private emitStatus(connected: boolean): void {
     this.statusListeners.forEach((listener) => listener(connected));
   }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimeout) return;
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = null;
+      console.log("WebSocket stream reconnecting...");
+      this.connect();
+    }, 5000);
+  }
+
   public connect(): void {
-    const wsUrl = `wss://buggybackend.onrender.com/devices/${this.deviceId}/stream`;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    const wsUrl = ApiClient.getWsUrl(`/sdk/devices/${this.deviceId}/stream?client=dashboard`);
 
     try {
       this.socket = new WebSocket(wsUrl);
@@ -88,21 +105,30 @@ export class WebSocketStream {
       this.socket.onerror = () => {
         console.warn("WebSocket stream error.");
         this.emitStatus(false);
+        this.scheduleReconnect();
       };
 
       this.socket.onclose = () => {
         console.warn("WebSocket stream closed.");
         this.emitStatus(false);
+        this.scheduleReconnect();
       };
     } catch (e) {
       console.warn("WebSocket connection exception.", e);
       this.emitStatus(false);
+      this.scheduleReconnect();
     }
   }
 
   public disconnect(): void {
     this.stopSimulation();
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
     if (this.socket) {
+      this.socket.onclose = null;
+      this.socket.onerror = null;
       this.socket.close();
       this.socket = null;
     }

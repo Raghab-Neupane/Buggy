@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import type { Device } from "../types/device";
 import { fetchMainDetails } from "../services/api";
 import type { DashboardStats } from "./useStats";
+import ApiClient from "../services/ApiClient";
 
 export function useDevices(userId?: string) {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -44,96 +45,108 @@ export function useDevices(userId?: string) {
 
   useEffect(() => {
     let isMounted = true;
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+
     loadDevices(true);
 
-    const wsUrl = userId 
-      ? `wss://buggybackend.onrender.com/ws/dashboard?userId=${userId}` 
-      : `wss://buggybackend.onrender.com/ws/dashboard`;
-      
-    const socket = new WebSocket(wsUrl);
-
-    socket.onmessage = (event) => {
+    const connect = () => {
       if (!isMounted) return;
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "log_event") {
-          const newLog = data.payload;
-          // Backend sends deviceId (camelCase), normalize to match frontend's id field
-          const logDeviceId = newLog.deviceId || newLog.deviceid;
-          
-          setDevices((prevDevices) => {
-            const exists = prevDevices.find(d => d.id === logDeviceId);
-            if (exists) {
+
+      const wsUrl = userId 
+        ? ApiClient.getWsUrl(`/ws/dashboard?userId=${userId}`)
+        : ApiClient.getWsUrl("/ws/dashboard");
+        
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        if (!isMounted) return;
+        console.log("Dashboard WS connection opened.");
+        // Re-fetch data after reconnect to ensure any status transitions that occurred offline are synced
+        loadDevices(false);
+      };
+
+      socket.onmessage = (event) => {
+        if (!isMounted) return;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "log_event") {
+            const newLog = data.payload;
+            const logDeviceId = newLog.deviceId || newLog.deviceid;
+            
+            setDevices((prevDevices) => {
+              const exists = prevDevices.find(d => d.id === logDeviceId);
+              if (exists) {
+                return prevDevices.map(d => {
+                  if (d.id === logDeviceId) {
+                    return {
+                      ...d,
+                      logCount: d.logCount + 1,
+                      errorCount: newLog.level.toLowerCase() === "error" ? d.errorCount + 1 : d.errorCount,
+                      online: newLog.isOnline !== undefined ? !!newLog.isOnline : d.online
+                    };
+                  }
+                  return d;
+                });
+              } else {
+                // Background fetch the device details for the new device
+                loadDevices(false);
+                return prevDevices;
+              }
+            });
+
+            setStats((prevStats) => {
+              return {
+                ...prevStats,
+                totalLogs: prevStats.totalLogs + 1,
+                errorsToday: newLog.level.toLowerCase() === "error" ? prevStats.errorsToday + 1 : prevStats.errorsToday
+              };
+            });
+          } else if (data.type === "status_change") {
+            const { deviceId, online } = data.payload;
+            setDevices((prevDevices) => {
               return prevDevices.map(d => {
-                if (d.id === logDeviceId) {
+                if (d.id === deviceId) {
                   return {
                     ...d,
-                    logCount: d.logCount + 1,
-                    errorCount: newLog.level.toLowerCase() === "error" ? d.errorCount + 1 : d.errorCount,
-                    lastSeen: new Date(newLog.timestamp).toLocaleTimeString()
-                    // NOTE: device.online is ONLY updated via status_change events
-                    // (broadcast by backend when /devices/{id}/stream WS connects or disconnects)
+                    online: online
                   };
                 }
                 return d;
               });
-            } else {
-              // New device seen for first time — online state will be set correctly
-              // by the next status_change broadcast from the backend
-              return [...prevDevices, {
-                id: logDeviceId,
-                name: newLog.deviceName || `${newLog.os || 'Unknown'} Device`,
-                browser: newLog.browser || "Unknown",
-                os: newLog.os || "Unknown",
-                online: false, // conservative default; status_change will set the real value
-                logCount: 1,
-                errorCount: newLog.level.toLowerCase() === "error" ? 1 : 0,
-                lastSeen: new Date(newLog.timestamp).toLocaleTimeString()
-              }];
-            }
-          });
-
-          setStats((prevStats) => {
-            return {
-              ...prevStats,
-              totalLogs: prevStats.totalLogs + 1,
-              errorsToday: newLog.level.toLowerCase() === "error" ? prevStats.errorsToday + 1 : prevStats.errorsToday
-            };
-          });
-        } else if (data.type === "status_change") {
-          const { deviceId, online } = data.payload;
-          setDevices((prevDevices) => {
-            return prevDevices.map(d => {
-              if (d.id === deviceId) {
-                return {
-                  ...d,
-                  online: online
-                };
-              }
-              return d;
             });
-          });
+            // Background fetch to sync connectedAt and lastSeen timestamps from the backend
+            loadDevices(false);
+          }
+        } catch (err) {
+          console.error("Dashboard WS message parse error:", err);
         }
-      } catch (err) {
-        console.error("Dashboard WS message parse error:", err);
-      }
+      };
+
+      socket.onerror = (err) => {
+        console.warn("Dashboard WS error", err);
+      };
+
+      socket.onclose = () => {
+        if (!isMounted) return;
+        console.warn("Dashboard WS connection closed. Reconnecting in 5s...");
+        socket = null;
+        reconnectTimeout = setTimeout(() => {
+          connect();
+        }, 5000);
+      };
     };
 
-    socket.onerror = (err) => {
-      console.warn("Dashboard WS error", err);
-      // Do NOT mark devices offline here — this only means the dashboard's own
-      // connection to /ws/dashboard dropped, not the device stream connections.
-    };
-
-    socket.onclose = () => {
-      console.warn("Dashboard WS connection closed.");
-      // Do NOT mark devices offline here — the device stream state is managed
-      // exclusively via status_change messages from the backend.
-    };
+    connect();
 
     return () => {
       isMounted = false;
-      socket.close();
+      if (socket) {
+        socket.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
     };
   }, [userId]);
 

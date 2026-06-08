@@ -1,6 +1,13 @@
 const API_BASE_URL = "https://buggybackend.onrender.com";
 
 class ApiClient {
+  public static getWsUrl(path: string): string {
+    const cleanBase = API_BASE_URL.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const wsProto = API_BASE_URL.startsWith("https") ? "wss" : "ws";
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return `${wsProto}://${cleanBase}${cleanPath}`;
+  }
+
   private static handleUnauthorized() {
     localStorage.removeItem("role");
     localStorage.removeItem("userId");

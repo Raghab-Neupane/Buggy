@@ -37,14 +37,29 @@ export const DeviceDetails: React.FC = () => {
   } = useLogs(deviceId);
 
   // Fetch device details
-  useEffect(() => {
+  const loadDev = async () => {
     if (!deviceId) return;
-    const loadDev = async () => {
+    try {
       const dev = await fetchDeviceById(deviceId);
       setDevice(dev);
-    };
+    } catch (err) {
+      console.error("Failed to load device details", err);
+    }
+  };
+
+  useEffect(() => {
     loadDev();
   }, [deviceId]);
+
+  // Re-fetch device details when connection restores
+  const prevConnectedRef = React.useRef<boolean>(isConnected);
+  useEffect(() => {
+    if (isConnected && !prevConnectedRef.current) {
+      console.log("DeviceDetails: WS connection restored, re-fetching device...");
+      loadDev();
+    }
+    prevConnectedRef.current = isConnected;
+  }, [isConnected]);
 
   const displayDevice = device ? {
     ...device,

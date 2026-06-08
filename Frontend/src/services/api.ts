@@ -22,16 +22,16 @@ export async function logout(): Promise<void> {
 export async function fetchDevice(id: string): Promise<Device | null> {
   const data = await ApiClient.get<any>(`/devices/${id}`);
 
-  const isOnline = data.online !== undefined ? data.online : (Date.now() - new Date(data.last_seen).getTime()) < 300000;
   return {
     id: data.id,
     name: data.device_name || `${data.os} Device`,
     browser: data.browser || "Unknown",
     os: data.os || "Unknown",
-    online: isOnline,
+    online: !!data.online,
     logCount: 0,
     errorCount: 0,
-    lastSeen: new Date(data.last_seen).toLocaleTimeString()
+    lastSeen: data.last_seen || "",
+    connectedAt: data.connected_at || null
   };
 }
 
