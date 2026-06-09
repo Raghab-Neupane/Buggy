@@ -17,7 +17,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ devices }) => {
   const initSnippet = `import { init } from 'npmpackagebuggy'
 
 init({
-  endpoint: "https://buggybackend.onrender.com/logs/${userId}"
+  endpoint: "http://localhost:8000/logs/${userId}"
 });`;
 
   const handleCopy = () => {
@@ -62,16 +62,26 @@ init({
       {/* Primary Navigation */}
       <nav className="space-y-1.5 mb-6">
         <p className="px-2 text-[9px] uppercase font-black text-slate-400 tracking-wider mb-2">Overview</p>
-        
+
         {/* Dashboard Link */}
+        <Link to="/errors">
+          <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold relative transition-all duration-150 ${location.pathname.startsWith("/errors") ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black" : "text-slate-600 hover:text-black hover:bg-slate-100 border border-transparent"}`}>
+            {location.pathname.startsWith("/errors") && (
+              <motion.div
+                layoutId="active-nav-indicator"
+                className="absolute left-0 w-1 h-4 bg-brand-500 rounded-r-md"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+            <div className="flex items-center gap-2.5">
+              <ShieldAlert className={`w-4 h-4 ${location.pathname.startsWith("/errors") ? "text-brand-600 font-black" : "text-slate-400"}`} />
+              <span>Errors</span>
+            </div>
+          </div>
+        </Link>
+
         <Link to="/dashboard">
-          <div
-            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold relative transition-all duration-150 ${
-              location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/")
-                ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black"
-                : "text-slate-600 hover:text-black hover:bg-slate-100 border border-transparent"
-            }`}
-          >
+          <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold relative transition-all duration-150 ${location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/") ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] font-black" : "text-slate-600 hover:text-black hover:bg-slate-100 border border-transparent"}`}>
             {(location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/")) && (
               <motion.div
                 layoutId="active-nav-indicator"
@@ -95,11 +105,10 @@ init({
               return (
                 <Link key={device.id} to={`/device/${device.id}`}>
                   <div
-                    className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-bold relative transition-all duration-150 ${
-                      isSelected
-                        ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)] font-black"
-                        : "text-slate-600 hover:text-black hover:bg-slate-50 border border-transparent"
-                    }`}
+                    className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-bold relative transition-all duration-150 ${isSelected
+                      ? "text-black bg-slate-50 border-2 border-slate-900 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)] font-black"
+                      : "text-slate-600 hover:text-black hover:bg-slate-50 border border-transparent"
+                      }`}
                   >
                     {isSelected && (
                       <motion.div
@@ -185,7 +194,7 @@ init({
           {/* Link highlight */}
           <div className="bg-white/80 backdrop-blur-sm rounded-lg px-2.5 py-1.5 border-2 border-slate-900 shadow-[1px_1px_0px_0px_rgba(15,23,42,1)]">
             <span className="text-[10px] font-mono font-black text-slate-900 break-all select-all">
-              https://buggybackend.onrender.com/sdk/logs/{userId}
+              http://localhost:8000/logs/{userId}
             </span>
           </div>
 

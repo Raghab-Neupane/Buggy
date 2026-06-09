@@ -211,7 +211,7 @@ class PathAwareCORSMiddleware:
         self.dash_cors = CORSMiddleware(
             app=app,
             allow_origins=[
-                "https://buggyfrontend.vercel.app",
+                "*",
             ],
             allow_credentials=True,
             allow_methods=["*"],
@@ -602,6 +602,48 @@ def get_device_logs(device_id: str, limit: int = 100, offset: int = 0, db: Sessi
         } for l in logs
     ]
 
+@app.get("/servers/{server_host}/logs")
+def get_server_logs(server_host: str, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+    from urllib.parse import urlparse
+    logs_list = _collect_logs(db)
+    
+    def matches(l):
+        url = l.get("url") or ""
+        if not url:
+            return False
+        if not url.startswith(("http://", "https://", "//")):
+            url_to_parse = "http://" + url
+        else:
+            url_to_parse = url
+        try:
+            parsed = urlparse(url_to_parse)
+            server = parsed.netloc or "unknown"
+        except Exception:
+            server = "unknown"
+        return server == server_host
+
+    logs = [l for l in logs_list if matches(l)]
+    logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    logs = logs[offset:offset+limit]
+    return [
+        {
+            "id": l.get("id"),
+            "level": l.get("level"),
+            "message": l.get("message"),
+            "timestamp": l.get("timestamp"),
+            "deviceid": l.get("deviceId"),
+            "url": l.get("url"),
+            "location": l.get("location") or "Unknown Location",
+            "browser": l.get("browser"),
+            "browserVersion": l.get("browserVersion"),
+            "deviceName": l.get("deviceName"),
+            "os": l.get("os"),
+            "latitude": l.get("latitude"),
+            "longitude": l.get("longitude"),
+            "sessionStartedAt": l.get("sessionStartedAt")
+        } for l in logs
+    ]
+
 @app.get("/main_details")
 def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)):
     logs_list = _collect_logs(db, user_id=userId)
@@ -672,98 +714,281 @@ def get_main_details(userId: Optional[str] = None, db: Session = Depends(get_db)
         "stats": stats
     }
 
+#---Routing for the tags:
+@app.get("/tags")
+def get_top_error_users(db: Session = Depends(get_db), diagnostic: bool = False):
+    from urllib.parse import urlparse
+    import json
+    
+    users = db.query(UserDB).all()
+    
+    total_users = len(users)
+    users_with_logs = 0
+    error_logs_found = 0
+    servers = set()
+    sample_log = {}
+    
+    # Defensive aggregation
+    server_user_errors = {}
+    
+    print(f"DEBUG: Number of users loaded: {total_users}", flush=True)
+    
+    for user in users:
+        user_id = getattr(user, "user_id", None) or "unknown_user"
+        print(f"DEBUG: Detected user ID: {user_id}", flush=True)
+        
+        raw_logs = getattr(user, "logs", None)
+        if not raw_logs:
+            print(f"DEBUG: User {user_id} has empty log collection or logs is None", flush=True)
+            continue
+            
+        # Defensive handling if logs column is stored as a serialized JSON string
+        if isinstance(raw_logs, str):
+            try:
+                logs_list = json.loads(raw_logs)
+            except Exception:
+                print(f"DEBUG: Failed to parse user {user_id} logs string", flush=True)
+                continue
+        elif isinstance(raw_logs, list):
+            logs_list = raw_logs
+        else:
+            print(f"DEBUG: User {user_id} logs is of unexpected type {type(raw_logs)}", flush=True)
+            continue
+            
+        if not logs_list:
+            print(f"DEBUG: User {user_id} logs list is empty", flush=True)
+            continue
+            
+        users_with_logs += 1
+        print(f"DEBUG: Number of logs per user {user_id}: {len(logs_list)}", flush=True)
+        
+        for log in logs_list:
+            # Defensive handling: parse log if it is a serialized string
+            if isinstance(log, str):
+                try:
+                    log_item = json.loads(log)
+                except Exception:
+                    continue
+            elif isinstance(log, dict):
+                log_item = log
+            else:
+                continue
+                
+            if not sample_log:
+                sample_log = log_item
+                print(f"DEBUG: Sample log structure: {sample_log}", flush=True)
+                
+            level = log_item.get("level")
+            print(f"DEBUG: Detected log level: {level}", flush=True)
+            
+            if level and str(level).strip().upper() == "ERROR":
+                error_logs_found += 1
+                url = log_item.get("url") or ""
+                print(f"DEBUG: log URL: {url}", flush=True)
+                if url:
+                    if not url.startswith(("http://", "https://", "//")):
+                        url_to_parse = "http://" + url
+                    else:
+                        url_to_parse = url
+                    try:
+                        parsed = urlparse(url_to_parse)
+                        server = parsed.netloc or "unknown"
+                    except Exception:
+                        server = "unknown"
+                else:
+                    server = "unknown"
+                servers.add(server)
+                
+                # Group for final response
+                if server not in server_user_errors:
+                    server_user_errors[server] = {}
+                server_user_errors[server][user_id] = server_user_errors[server].get(user_id, 0) + 1
+
+    if diagnostic:
+        diagnostic_info = {
+            "totalUsers": total_users,
+            "usersWithLogs": users_with_logs,
+            "errorLogsFound": error_logs_found,
+            "serversFound": len(servers),
+            "sampleLog": sample_log
+        }
+        print(f"DEBUG: Diagnostic Info: {diagnostic_info}", flush=True)
+        return diagnostic_info
+
+    # Build the final response format
+    result = []
+    for server, user_counts in server_user_errors.items():
+        top_users = []
+        for u_id, count in user_counts.items():
+            top_users.append({
+                "userId": u_id,
+                "errorCount": count
+            })
+        # Sort users by errorCount descending
+        top_users.sort(key=lambda x: x["errorCount"], reverse=True)
+        
+        result.append({
+            "deviceId": server,
+            "topErrorUsers": top_users
+        })
+        
+    # Sort servers by total error count (highest error count servers first)
+    result.sort(key=lambda x: sum(u["errorCount"] for u in x["topErrorUsers"]), reverse=True)
+
+    return result
+
+# =========================
+# ERROR ANALYTICS ENDPOINT
+# =========================
+
+@app.get("/errors/by-url")
+def get_errors_by_url(db: Session = Depends(get_db)):
+    """Aggregate logs grouped by full URL, then by device_id within each URL."""
+    logs_list = _collect_logs(db)
+
+    # url_key -> device_id -> aggregated info
+    url_devices: Dict[str, Dict[str, dict]] = {}
+
+    for log in logs_list:
+        url = log.get("url") or ""
+        device_id = log.get("deviceId") or ""
+        if not url or not device_id:
+            continue
+
+        if url not in url_devices:
+            url_devices[url] = {}
+
+        if device_id not in url_devices[url]:
+            url_devices[url][device_id] = {
+                "device_id": device_id,
+                "device_name": log.get("deviceName") or f"{log.get('os', 'Unknown')} Device",
+                "browser": log.get("browser") or "Unknown",
+                "browser_version": log.get("browserVersion") or "Unknown",
+                "os": log.get("os") or "Unknown",
+                "error_count": 0,
+                "log_count": 0,
+                "active": manager.is_device_online(device_id),
+                "last_seen": manager.get_last_seen(device_id) or log.get("timestamp") or "",
+            }
+
+        url_devices[url][device_id]["log_count"] += 1
+        if (log.get("level") or "").lower() == "error":
+            url_devices[url][device_id]["error_count"] += 1
+
+    # Build response list
+    result = []
+    for url, devices_map in url_devices.items():
+        devices_list = list(devices_map.values())
+        total_errors = sum(d["error_count"] for d in devices_list)
+        total_logs = sum(d["log_count"] for d in devices_list)
+
+        # Sort devices by error count descending
+        devices_list.sort(key=lambda d: d["error_count"], reverse=True)
+
+        result.append({
+            "url": url,
+            "error_count": total_errors,
+            "log_count": total_logs,
+            "device_count": len(devices_list),
+            "devices": devices_list,
+        })
+
+    # Sort URLs by error count descending
+    result.sort(key=lambda x: x["error_count"], reverse=True)
+
+    return result
+
 # =========================
 # PASSWORD RESET ENDPOINTS
 # =========================
 
-FRONTEND_URL = "http://localhost:5175"
+#FRONTEND_URL = "http://localhost:5175"
 
-@app.post("/auth/forgot-password")
-async def forgot_password(item: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """Generate a secure reset token and email the reset link."""
-    user = db.query(UserDB).filter(UserDB.email == item.email).first()
+# #@app.post("/auth/forgot-password")
+# async def forgot_password(item: ForgotPasswordRequest, db: Session = Depends(get_db)):
+#     """Generate a secure reset token and email the reset link."""
+#     user = db.query(UserDB).filter(UserDB.email == item.email).first()
 
-    # Always return success to avoid user enumeration attacks
-    if not user:
-        return {"status": "success", "message": "If that email exists, a reset link has been sent."}
+#     # Always return success to avoid user enumeration attacks
+#     if not user:
+#         return {"status": "success", "message": "If that email exists, a reset link has been sent."}
 
-    # Invalidate all previous unused reset tokens for this user
-    db.query(PasswordResetToken).filter(
-        PasswordResetToken.user_id == user.id,
-        PasswordResetToken.used == False
-    ).update({"used": True})
-    db.commit()
+#     # Invalidate all previous unused reset tokens for this user
+#     db.query(PasswordResetToken).filter(
+#         PasswordResetToken.user_id == user.id,
+#         PasswordResetToken.used == False
+#     ).update({"used": True})
+#     db.commit()
 
-    # Generate a secure random token
-    raw_token = secrets.token_urlsafe(48)
+#     # Generate a secure random token
+#     raw_token = secrets.token_urlsafe(48)
 
-    # Store only the SHA-256 hash in the database
-    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+#     # Store only the SHA-256 hash in the database
+#     token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
 
-    now_utc = datetime.now(timezone.utc)
-    now_naive = now_utc.replace(tzinfo=None)
-    reset_record = PasswordResetToken(
-        user_id=user.id,
-        token_hash=token_hash,
-        expires_at=now_naive + timedelta(minutes=30),
-        used=False,
-        created_at=now_naive
-    )
-    db.add(reset_record)
-    db.commit()
+#     now_utc = datetime.now(timezone.utc)
+#     now_naive = now_utc.replace(tzinfo=None)
+#     reset_record = PasswordResetToken(
+#         user_id=user.id,
+#         token_hash=token_hash,
+#         expires_at=now_naive + timedelta(minutes=30),
+#         used=False,
+#         created_at=now_naive
+#     )
+#     db.add(reset_record)
+#     db.commit()
 
-    # Build reset URL with the raw token (not the hash)
-    reset_link = f"{FRONTEND_URL}/reset-password?token={raw_token}"
+#     # Build reset URL with the raw token (not the hash)
+#     reset_link = f"{FRONTEND_URL}/reset-password?token={raw_token}"
 
-    return {
-        "status": "success",
-        "message": "If that email exists, a reset link has been sent.",
-        "reset_link": reset_link,
-        "token": raw_token
-    }
+#     return {
+#         "status": "success",
+#         "message": "If that email exists, a reset link has been sent.",
+#         "reset_link": reset_link,
+#         "token": raw_token
+#     }
 
+# #@app.post("/auth/reset-password")
+# def reset_password(item: ResetPasswordRequest, db: Session = Depends(get_db)):
+#     """Validate the reset token and update the user's password."""
+#     # Hash the incoming token to match against stored hash
+#     token_hash = hashlib.sha256(item.token.encode('utf-8')).hexdigest()
 
-@app.post("/auth/reset-password")
-def reset_password(item: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """Validate the reset token and update the user's password."""
-    # Hash the incoming token to match against stored hash
-    token_hash = hashlib.sha256(item.token.encode('utf-8')).hexdigest()
+#     # Find matching reset token record
+#     reset_record = db.query(PasswordResetToken).filter(
+#         PasswordResetToken.token_hash == token_hash,
+#         PasswordResetToken.used == False
+#     ).first()
 
-    # Find matching reset token record
-    reset_record = db.query(PasswordResetToken).filter(
-        PasswordResetToken.token_hash == token_hash,
-        PasswordResetToken.used == False
-    ).first()
+#     if not reset_record:
+#         raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
 
-    if not reset_record:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+#     # Check expiration
+#     if datetime.now(timezone.utc).replace(tzinfo=None) > reset_record.expires_at:
+#         reset_record.used = True
+#         db.commit()
+#         raise HTTPException(status_code=400, detail="Reset token has expired.")
 
-    # Check expiration
-    if datetime.now(timezone.utc).replace(tzinfo=None) > reset_record.expires_at:
-        reset_record.used = True
-        db.commit()
-        raise HTTPException(status_code=400, detail="Reset token has expired.")
+#     # Find the user
+#     user = db.query(UserDB).filter(UserDB.id == reset_record.user_id).first()
+#     if not user:
+#         raise HTTPException(status_code=400, detail="User not found.")
 
-    # Find the user
-    user = db.query(UserDB).filter(UserDB.id == reset_record.user_id).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="User not found.")
+#     # Update the user's password using existing hashing mechanism
+#     user.password_hash = hash_password(item.new_password)
+#     user.token_version += 1
+#     db.add(user)
 
-    # Update the user's password using existing hashing mechanism
-    user.password_hash = hash_password(item.new_password)
-    user.token_version += 1
-    db.add(user)
+#     # Mark this token as used
+#     reset_record.used = True
 
-    # Mark this token as used
-    reset_record.used = True
+#     # Invalidate all other active reset tokens for this user
+#     db.query(PasswordResetToken).filter(
+#         PasswordResetToken.user_id == user.id,
+#         PasswordResetToken.used == False
+#     ).update({"used": True})
 
-    # Invalidate all other active reset tokens for this user
-    db.query(PasswordResetToken).filter(
-        PasswordResetToken.user_id == user.id,
-        PasswordResetToken.used == False
-    ).update({"used": True})
+#     db.commit()
 
-    db.commit()
-
-    return {"status": "success", "message": "Password has been reset successfully."}
+#     return {"status": "success", "message": "Password has been reset successfully."}
 
