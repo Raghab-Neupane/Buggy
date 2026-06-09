@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { ErrorsPage } from "./pages/errors/ErrorsPage";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./pages/dashboard";
 import { DeviceDetails } from "./pages/DeviceDetails";
@@ -18,6 +19,7 @@ function AuthenticatedApp({ role, currentUserId }: { role: string; currentUserId
       {/* Main route view workspace panel */}
       <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-slate-50">
         <Routes>
+          <Route path="/errors" element={<ErrorsPage />} />
           {role === "admin" ? (
             <>
               {/* Admin dashboard sees all */}

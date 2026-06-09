@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://buggybackend.onrender.com";
+const API_BASE_URL = "http://localhost:8000";
 
 class ApiClient {
   public static getWsUrl(path: string): string {
@@ -20,7 +20,7 @@ class ApiClient {
   private static async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
     const headers = new Headers(options.headers || {});
-    
+
     const response = await fetch(url, {
       ...options,
       headers,
