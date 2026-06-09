@@ -838,6 +838,67 @@ def get_top_error_users(db: Session = Depends(get_db), diagnostic: bool = False)
     return result
 
 # =========================
+# ERROR ANALYTICS ENDPOINT
+# =========================
+
+@app.get("/errors/by-url")
+def get_errors_by_url(db: Session = Depends(get_db)):
+    """Aggregate logs grouped by full URL, then by device_id within each URL."""
+    logs_list = _collect_logs(db)
+
+    # url_key -> device_id -> aggregated info
+    url_devices: Dict[str, Dict[str, dict]] = {}
+
+    for log in logs_list:
+        url = log.get("url") or ""
+        device_id = log.get("deviceId") or ""
+        if not url or not device_id:
+            continue
+
+        if url not in url_devices:
+            url_devices[url] = {}
+
+        if device_id not in url_devices[url]:
+            url_devices[url][device_id] = {
+                "device_id": device_id,
+                "device_name": log.get("deviceName") or f"{log.get('os', 'Unknown')} Device",
+                "browser": log.get("browser") or "Unknown",
+                "browser_version": log.get("browserVersion") or "Unknown",
+                "os": log.get("os") or "Unknown",
+                "error_count": 0,
+                "log_count": 0,
+                "active": manager.is_device_online(device_id),
+                "last_seen": manager.get_last_seen(device_id) or log.get("timestamp") or "",
+            }
+
+        url_devices[url][device_id]["log_count"] += 1
+        if (log.get("level") or "").lower() == "error":
+            url_devices[url][device_id]["error_count"] += 1
+
+    # Build response list
+    result = []
+    for url, devices_map in url_devices.items():
+        devices_list = list(devices_map.values())
+        total_errors = sum(d["error_count"] for d in devices_list)
+        total_logs = sum(d["log_count"] for d in devices_list)
+
+        # Sort devices by error count descending
+        devices_list.sort(key=lambda d: d["error_count"], reverse=True)
+
+        result.append({
+            "url": url,
+            "error_count": total_errors,
+            "log_count": total_logs,
+            "device_count": len(devices_list),
+            "devices": devices_list,
+        })
+
+    # Sort URLs by error count descending
+    result.sort(key=lambda x: x["error_count"], reverse=True)
+
+    return result
+
+# =========================
 # PASSWORD RESET ENDPOINTS
 # =========================
 
